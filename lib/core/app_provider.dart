@@ -17,6 +17,10 @@ class AppProvider extends ChangeNotifier {
   bool _isVpnRunning = false;
   bool _isAccessibilityEnabled = false;
   bool _isAdminActive = false;
+  
+  // ── Advanced Stats ──
+  int _longestStreak = 0;
+  List<DateTime> _relapses = [];
 
   int get streakDays => _streakDays;
   int get urgesResisted => _urgesResisted;
@@ -27,6 +31,8 @@ class AppProvider extends ChangeNotifier {
   int get hoursSaved => _minutesSaved ~/ 60;
   bool get isProtectionEnabled => true; // Always ON
   bool get hasCompletedOnboarding => _hasCompletedOnboarding;
+  int get longestStreak => _longestStreak;
+  List<DateTime> get relapses => List.unmodifiable(_relapses);
 
   // ── New getters ──
   bool get isVpnRunning => _isVpnRunning;
@@ -50,6 +56,11 @@ class AppProvider extends ChangeNotifier {
     _streakDays = prefs.getInt('streak') ?? 0;
     _urgesResisted = prefs.getInt('urges') ?? 0;
     _minutesSaved = prefs.getInt('minutes') ?? 0;
+    _longestStreak = prefs.getInt('longest_streak') ?? 0;
+    
+    final relapsesStrs = prefs.getStringList('relapses') ?? [];
+    _relapses = relapsesStrs.map((s) => DateTime.parse(s)).toList();
+
     _pin = prefs.getString('pin');
     _hasCompletedOnboarding = prefs.getBool('onboarding_completed') ?? false;
     final lastVisit = prefs.getString('lastVisit');
@@ -154,8 +165,18 @@ class AppProvider extends ChangeNotifier {
     if (_lastVisitDate == null ||
         now.difference(_lastVisitDate!).inDays >= 1) {
       _streakDays++;
+      if (_streakDays > _longestStreak) {
+        _longestStreak = _streakDays;
+      }
       _lastVisitDate = now;
     }
+  }
+
+  Future<void> registerRelapse() async {
+    _relapses.add(DateTime.now());
+    _streakDays = 0; // Reset streak
+    await _save();
+    notifyListeners();
   }
 
   Future<void> addSite(String url) async {
@@ -227,6 +248,8 @@ class AppProvider extends ChangeNotifier {
     await prefs.setInt('streak', _streakDays);
     await prefs.setInt('urges', _urgesResisted);
     await prefs.setInt('minutes', _minutesSaved);
+    await prefs.setInt('longest_streak', _longestStreak);
+    await prefs.setStringList('relapses', _relapses.map((d) => d.toIso8601String()).toList());
     await prefs.setStringList('sites', _blockedSites);
     await prefs.setStringList('dns', _dnsList);
     await prefs.setBool('onboarding_completed', _hasCompletedOnboarding);

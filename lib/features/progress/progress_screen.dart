@@ -1,359 +1,494 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../../core/app_provider.dart';
 import '../../core/bottom_nav.dart';
 
-class ProgressScreen extends StatelessWidget {
+class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
+
+  @override
+  State<ProgressScreen> createState() => _ProgressScreenState();
+}
+
+class _ProgressScreenState extends State<ProgressScreen> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+
+  // Local state for mocked habits
+  final Map<String, bool> _habits = {
+    'Jogging (30m)': false,
+    'Drink 4L Water': false,
+    'Cold Shower': false,
+    'Gym Session': false,
+  };
+
+  void _showRelapseDialog(BuildContext context, AppProvider provider) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 28),
+            SizedBox(width: 12),
+            Text('Relapse Report', style: TextStyle(color: AppColors.textPrimary)),
+          ],
+        ),
+        content: const Text(
+          'Did you really relapse, or did you press this by mistake?\n\nIf you confirm, your current streak will be reset to 0 and today will be marked red.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Mistake (Cancel)', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              provider.registerRelapse();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Relapse recorded. It\'s okay, keep pushing forward!'),
+                  backgroundColor: AppColors.danger,
+                ),
+              );
+            },
+            child: const Text('I Relapsed', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Progress')),
+      appBar: AppBar(
+        title: const Text('Journey & Progress'),
+      ),
       body: Consumer<AppProvider>(
         builder: (context, provider, _) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _StreakHero(provider: provider),
-            const SizedBox(height: 20),
-            _WeeklyChart(),
-            const SizedBox(height: 20),
-            _BadgesSection(provider: provider),
-            const SizedBox(height: 20),
-            _TimeSavedBreakdown(provider: provider),
+            _StreakStatsRow(provider: provider),
+            const SizedBox(height: 24),
+            _buildCalendarSection(provider),
+            const SizedBox(height: 24),
+            _buildHabitsSection(),
+            const SizedBox(height: 24),
+            _buildScreenTimeSection(),
+            const SizedBox(height: 24),
+            _buildYouTubeSuggestions(),
+            const SizedBox(height: 40),
           ],
         ),
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 1),
     );
   }
-}
 
-class _StreakHero extends StatelessWidget {
-  final AppProvider provider;
-  const _StreakHero({required this.provider});
+  Widget _buildCalendarSection(AppProvider provider) {
+    final relapses = provider.relapses;
+    
+    // We treat all days prior to today as "clean" UNLESS they are in the relapse list.
+    // For simplicity, we just mark relapse days red, and non-relapse days green if they are <= today.
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.streakOrange.withOpacity(0.2),
-            AppColors.primary.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.streakOrange.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          const Text('🔥', style: TextStyle(fontSize: 48))
-              .animate(onPlay: (c) => c.repeat())
-              .shimmer(duration: 2000.ms),
-          const SizedBox(height: 12),
-          Text(
-            '${provider.streakDays}',
-            style: const TextStyle(
-              color: AppColors.streakOrange,
-              fontSize: 72,
-              fontWeight: FontWeight.w800,
-            ),
-          ).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
-          const Text('Day Streak',
-              style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500)),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _MiniStat(
-                  value: '${provider.urgesResisted}',
-                  label: 'Urges Resisted',
-                  color: AppColors.accent),
-              const SizedBox(width: 32),
-              _MiniStat(
-                  value: provider.timeSavedLabel,
-                  label: 'Time Saved',
-                  color: AppColors.primary),
-            ],
-          ),
-        ],
-      ),
-    ).animate().fadeIn().scale(begin: const Offset(0.95, 0.95));
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color color;
-
-  const _MiniStat(
-      {required this.value, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value,
-            style: TextStyle(
-                color: color, fontSize: 20, fontWeight: FontWeight.w700)),
-        Text(label,
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 11)),
-      ],
-    );
-  }
-}
-
-class _WeeklyChart extends StatelessWidget {
-  // Mock weekly data — in production, persist daily urge counts
-  static final _data = [3, 1, 4, 0, 2, 1, 0];
-  static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  @override
-  Widget build(BuildContext context) {
     return GlowCard(
       glowColor: AppColors.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(title: 'Urges This Week'),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 140,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: 5,
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (v, _) => Text(
-                        _days[v.toInt()],
-                        style: const TextStyle(
-                            color: AppColors.textMuted, fontSize: 11),
+          const SectionTitle(title: '📅 Activity Calendar'),
+          const SizedBox(height: 16),
+          TableCalendar(
+            firstDay: DateTime.now().subtract(const Duration(days: 365)),
+            lastDay: DateTime.now().add(const Duration(days: 365)),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            calendarFormat: CalendarFormat.month,
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            headerStyle: const HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+              titleTextStyle: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+              leftChevronIcon: Icon(Icons.chevron_left, color: AppColors.textSecondary),
+              rightChevronIcon: Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            ),
+            daysOfWeekStyle: const DaysOfWeekStyle(
+              weekdayStyle: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+              weekendStyle: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            calendarStyle: CalendarStyle(
+              defaultTextStyle: const TextStyle(color: AppColors.textPrimary),
+              weekendTextStyle: const TextStyle(color: AppColors.textSecondary),
+              outsideTextStyle: const TextStyle(color: AppColors.textMuted),
+              todayDecoration: BoxDecoration(
+                color: Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+              ),
+              selectedDecoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            calendarBuilders: CalendarBuilders(
+              defaultBuilder: (context, day, focusedDay) {
+                if (day.isAfter(DateTime.now())) return null; // Future days default
+                
+                final isRelapse = relapses.any((r) => isSameDay(r, day));
+                
+                return Container(
+                  margin: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isRelapse ? AppColors.danger.withOpacity(0.2) : AppColors.accent.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isRelapse ? AppColors.danger : AppColors.accent,
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        color: isRelapse ? AppColors.danger : AppColors.accent,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => const FlLine(
-                    color: AppColors.border,
-                    strokeWidth: 1,
+                );
+              },
+              todayBuilder: (context, day, focusedDay) {
+                final isRelapse = relapses.any((r) => isSameDay(r, day));
+                return Container(
+                  margin: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isRelapse ? AppColors.danger.withOpacity(0.2) : AppColors.accent.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isRelapse ? AppColors.danger : AppColors.accent,
+                      width: 2,
+                    ),
                   ),
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: _data.asMap().entries.map((e) {
-                  final isToday = e.key == DateTime.now().weekday - 1;
-                  return BarChartGroupData(
-                    x: e.key,
-                    barRods: [
-                      BarChartRodData(
-                        toY: e.value.toDouble(),
-                        color: isToday
-                            ? AppColors.primary
-                            : AppColors.primary.withOpacity(0.4),
-                        width: 20,
-                        borderRadius: BorderRadius.circular(6),
+                  child: Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        color: isRelapse ? AppColors.danger : AppColors.accent,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
-                  );
-                }).toList(),
+                    ),
+                  ),
+                ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2000.ms, color: Colors.white24);
+              },
+            ),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              _focusedDay = focusedDay;
+            },
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _Legend(color: AppColors.accent, label: 'Clean'),
+              const SizedBox(width: 16),
+              _Legend(color: AppColors.danger, label: 'Relapse'),
+              const SizedBox(width: 16),
+              _Legend(color: AppColors.primary, label: 'Selected'),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('I Relapsed / Fapped'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger.withOpacity(0.1),
+                foregroundColor: AppColors.danger,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.danger),
+                ),
               ),
+              onPressed: () => _showRelapseDialog(context, provider),
             ),
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms);
+    ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0);
   }
-}
 
-class _BadgesSection extends StatelessWidget {
-  final AppProvider provider;
-  const _BadgesSection({required this.provider});
-
-  List<_Badge> get _badges => [
-        _Badge('🌱', 'First Step', 'Started your journey', provider.streakDays >= 1),
-        _Badge('🔥', '3-Day Streak', 'Three days strong', provider.streakDays >= 3),
-        _Badge('⚡', 'Week Warrior', '7 days clean', provider.streakDays >= 7),
-        _Badge('💎', 'Iron Will', '30 days clean', provider.streakDays >= 30),
-        _Badge('🛡️', 'Urge Slayer', 'Resisted 10 urges', provider.urgesResisted >= 10),
-        _Badge('⏰', 'Time Reclaimer', 'Saved 1 hour', provider.hoursSaved >= 1),
-      ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionTitle(title: 'Badges'),
-        const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 0.9,
-          children: _badges
-              .asMap()
-              .entries
-              .map((e) => _BadgeCard(badge: e.value, delay: e.key * 80))
-              .toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _Badge {
-  final String emoji;
-  final String title;
-  final String desc;
-  final bool unlocked;
-  const _Badge(this.emoji, this.title, this.desc, this.unlocked);
-}
-
-class _BadgeCard extends StatelessWidget {
-  final _Badge badge;
-  final int delay;
-
-  const _BadgeCard({required this.badge, required this.delay});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: badge.unlocked
-            ? AppColors.card
-            : AppColors.background,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: badge.unlocked
-              ? AppColors.streakOrange.withOpacity(0.4)
-              : AppColors.border,
-        ),
-        boxShadow: badge.unlocked
-            ? [
-                BoxShadow(
-                    color: AppColors.streakOrange.withOpacity(0.1),
-                    blurRadius: 12)
-              ]
-            : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            badge.emoji,
-            style: TextStyle(
-                fontSize: 28,
-                color: badge.unlocked ? null : const Color(0xFF333333)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            badge.title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: badge.unlocked
-                  ? AppColors.textPrimary
-                  : AppColors.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(delay: Duration(milliseconds: delay))
-        .scale(begin: const Offset(0.8, 0.8), curve: Curves.elasticOut);
-  }
-}
-
-class _TimeSavedBreakdown extends StatelessWidget {
-  final AppProvider provider;
-  const _TimeSavedBreakdown({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final hours = provider.hoursSaved;
+  Widget _buildHabitsSection() {
     return GlowCard(
-      glowColor: AppColors.accent,
+      glowColor: AppColors.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SectionTitle(title: 'Time Reclaimed'),
+          const SectionTitle(title: '✅ Daily Habits'),
+          const SizedBox(height: 12),
+          const Text(
+            'Replace bad habits with powerful new ones.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
           const SizedBox(height: 16),
-          _TimeRow(emoji: '⏱️', label: 'Total saved', value: provider.timeSavedLabel),
-          const SizedBox(height: 10),
-          _TimeRow(
-              emoji: '🏋️',
-              label: 'Workouts equivalent',
-              value: '${(hours / 1.5).floor()} sessions'),
-          const SizedBox(height: 10),
-          _TimeRow(
-              emoji: '📚',
-              label: 'Study chapters',
-              value: '${(hours * 2).floor()} chapters'),
-          const SizedBox(height: 10),
-          _TimeRow(
-              emoji: '🧘',
-              label: 'Meditation sessions',
-              value: '${(hours * 4).floor()} sessions'),
+          ..._habits.entries.map((e) => CheckboxListTile(
+                title: Text(
+                  e.key,
+                  style: TextStyle(
+                    color: e.value ? AppColors.textMuted : AppColors.textPrimary,
+                    decoration: e.value ? TextDecoration.lineThrough : null,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                value: e.value,
+                activeColor: AppColors.accent,
+                checkColor: AppColors.background,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (val) {
+                  setState(() {
+                    _habits[e.key] = val ?? false;
+                  });
+                },
+              )),
         ],
       ),
-    ).animate().fadeIn(delay: 400.ms);
+    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildScreenTimeSection() {
+    return GlowCard(
+      glowColor: AppColors.warning,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionTitle(title: '📱 Daily Phone Usage'),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.smartphone_rounded, color: AppColors.warning, size: 28),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('4h 25m', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
+                    SizedBox(height: 4),
+                    Text('-12% compared to last week', style: TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const LinearProgressIndicator(
+            value: 0.6, // Mock value
+            backgroundColor: AppColors.border,
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+            minHeight: 8,
+          ),
+          const SizedBox(height: 8),
+          const Text('Top apps: Instagram (1h 10m), Chrome (45m)', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ],
+      ),
+    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildYouTubeSuggestions() {
+    final videos = [
+      {'title': 'How to Quit Porn Forever', 'author': 'Dr. Trish', 'url': 'https://www.youtube.com/watch?v=1'},
+      {'title': 'The Huberman Lab on Dopamine', 'author': 'Andrew Huberman', 'url': 'https://www.youtube.com/watch?v=2'},
+      {'title': 'Why You Lack Discipline', 'author': 'Hamza', 'url': 'https://www.youtube.com/watch?v=3'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle(title: '🧠 Rewire Your Brain'),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 140,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: videos.length,
+            itemBuilder: (context, index) {
+              final video = videos[index];
+              return GestureDetector(
+                onTap: () async {
+                  // In a real app, launch the URL
+                  // await launchUrl(Uri.parse(video['url']!));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening video...')));
+                },
+                child: Container(
+                  width: 240,
+                  margin: const EdgeInsets.only(right: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 70,
+                        decoration: const BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.play_circle_fill_rounded, color: AppColors.danger, size: 32),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              video['title']!,
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              video['author']!,
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
-class _TimeRow extends StatelessWidget {
-  final String emoji;
-  final String label;
-  final String value;
-
-  const _TimeRow(
-      {required this.emoji, required this.label, required this.value});
+class _StreakStatsRow extends StatelessWidget {
+  final AppProvider provider;
+  const _StreakStatsRow({required this.provider});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 18)),
-        const SizedBox(width: 10),
         Expanded(
-          child: Text(label,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13)),
+          child: _StatBox(
+            title: 'Current Streak',
+            value: '${provider.streakDays}',
+            subtitle: 'Days Clean',
+            color: AppColors.streakOrange,
+          ),
         ),
-        Text(value,
-            style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 13,
-                fontWeight: FontWeight.w600)),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatBox(
+            title: 'Longest Streak',
+            value: '${provider.longestStreak}',
+            subtitle: 'Personal Best',
+            color: AppColors.primary,
+          ),
+        ),
+      ],
+    ).animate().fadeIn().slideY(begin: -0.1, end: 0);
+  }
+}
+
+class _StatBox extends StatelessWidget {
+  final String title;
+  final String value;
+  final String subtitle;
+  final Color color;
+
+  const _StatBox({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(color: color, fontSize: 32, fontWeight: FontWeight.w800, height: 1)),
+          const SizedBox(height: 4),
+          Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _Legend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.3),
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
       ],
     );
   }

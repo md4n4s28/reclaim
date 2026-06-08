@@ -2,34 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  // Dark Theme Colors
-  static const background = Color(0xFF0D1117);
-  static const surface = Color(0xFF161B22);
-  static const card = Color(0xFF1C2333);
-  static const primary = Color(0xFF58A6FF);
-  static const primaryGlow = Color(0xFF1F6FEB);
-  static const accent = Color(0xFF3FB950);
-  static const warning = Color(0xFFD29922);
-  static const danger = Color(0xFFF85149);
-  static const textPrimary = Color(0xFFE6EDF3);
-  static const textSecondary = Color(0xFF8B949E);
-  static const textMuted = Color(0xFF484F58);
-  static const border = Color(0xFF30363D);
-  static const streakOrange = Color(0xFFFF7B54);
-  static const panicRed = Color(0xFFFF4757);
+  // Deep Modern Dark Theme Colors
+  static const background = Color(0xFF050505);
+  static const surface = Color(0xFF0F0F11);
+  static const card = Color(0xFF141417);
+  static const primary = Color(0xFF4F46E5); // Indigo 600
+  static const primaryGlow = Color(0xFF6366F1); // Indigo 500
+  static const accent = Color(0xFF10B981); // Emerald 500 (Progress/Success)
+  static const warning = Color(0xFFF59E0B); // Amber 500
+  static const danger = Color(0xFFEF4444); // Red 500
+  static const textPrimary = Color(0xFFF8FAFC);
+  static const textSecondary = Color(0xFF94A3B8);
+  static const textMuted = Color(0xFF475569);
+  static const border = Color(0xFF27272A);
+  static const streakOrange = Color(0xFFF97316); // Orange 500
+  static const panicRed = Color(0xFFFF3366);
 
-  // Light Theme Colors
-  static const lightBackground = Color(0xFFF5F7FA);
+  // Modern Light Theme Colors
+  static const lightBackground = Color(0xFFF8FAFC);
   static const lightSurface = Color(0xFFFFFFFF);
   static const lightCard = Color(0xFFFFFFFF);
-  static const lightPrimary = Color(0xFF6366F1);
+  static const lightPrimary = Color(0xFF4F46E5);
   static const lightAccent = Color(0xFF10B981);
   static const lightWarning = Color(0xFFF59E0B);
   static const lightDanger = Color(0xFFEF4444);
-  static const lightTextPrimary = Color(0xFF1F2937);
-  static const lightTextSecondary = Color(0xFF6B7280);
-  static const lightTextMuted = Color(0xFF9CA3AF);
-  static const lightBorder = Color(0xFFE5E7EB);
+  static const lightTextPrimary = Color(0xFF0F172A);
+  static const lightTextSecondary = Color(0xFF64748B);
+  static const lightTextMuted = Color(0xFF94A3B8);
+  static const lightBorder = Color(0xFFE2E8F0);
 }
 
 class AppTheme {

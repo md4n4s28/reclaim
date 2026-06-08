@@ -25,9 +25,11 @@ class _StreakTimerState extends State<StreakTimer> {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {
-        _elapsed += const Duration(seconds: 1);
-      });
+      if (mounted) {
+        setState(() {
+          _elapsed += const Duration(seconds: 1);
+        });
+      }
     });
   }
 
@@ -41,90 +43,93 @@ class _StreakTimerState extends State<StreakTimer> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    final totalDuration = Duration(days: provider.streakDays) + _elapsed;
 
-    return GlowCard(
-      glowColor: AppColors.streakOrange,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary,
+            AppColors.primaryGlow,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.streakOrange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.timer_rounded,
-                    color: AppColors.streakOrange, size: 24),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: const Row(
                   children: [
-                    Text('⏱️ Live Streak Timer',
-                        style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500)),
-                    SizedBox(height: 4),
-                    Text('Time since last urge',
-                        style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600)),
+                    Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 14),
+                    SizedBox(width: 4),
+                    Text('LIVE STREAK', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                   ],
                 ),
               ),
+              const Spacer(),
+              const Icon(Icons.shield_rounded, color: Colors.white70, size: 20),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  '${provider.streakDays}',
-                  style: const TextStyle(
-                    color: AppColors.streakOrange,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
-                )
-                    .animate(onPlay: (c) => c.repeat())
-                    .shimmer(duration: 2000.ms, color: AppColors.streakOrange.withOpacity(0.3)),
-                const Text('DAYS',
-                    style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        letterSpacing: 2)),
-                const SizedBox(height: 8),
-                Text(
-                  _formatDuration(_elapsed),
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
+          const SizedBox(height: 24),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${provider.streakDays}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: -2,
                 ),
-                const Text('Hours : Minutes : Seconds',
+              ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0, left: 8.0),
+                child: Text('DAYS',
                     style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 10)),
-              ],
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _formatDuration(_elapsed),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [FontFeature.tabularFigures()],
+              letterSpacing: 1,
             ),
           ),
+          const SizedBox(height: 4),
+          const Text('HH : MM : SS',
+              style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
-    ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.95, 0.95));
+    ).animate().fadeIn(duration: 500.ms).scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOut);
   }
 
   @override

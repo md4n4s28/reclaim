@@ -5,11 +5,9 @@ import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../../core/app_provider.dart';
 import '../../core/bottom_nav.dart';
-import 'widgets/focus_card.dart';
 import 'widgets/streak_timer.dart';
 import 'widgets/stats_carousel.dart';
 import 'widgets/mood_tracker.dart';
-import 'widgets/mini_calendar.dart';
 import 'widgets/weekly_comparison.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -63,25 +61,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 8),
-                      const FocusCard(),
+                      const StreakTimer(), // Upgraded to be the main Hero card
+                      const SizedBox(height: 24),
+                      _QuickActionsGrid(),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Your Progress',
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 16),
-                      const StatsCarousel(),
-                      const SizedBox(height: 20),
-                      const MiniCalendar(),
-                      const SizedBox(height: 20),
-                      const StreakTimer(),
-                      const SizedBox(height: 20),
-                      _PanicButton(),
-                      const SizedBox(height: 20),
+                      const StatsCarousel(), // We will update this to a sleek horizontal list
+                      const SizedBox(height: 24),
                       const MoodTracker(),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       const WeeklyComparison(),
-                      const SizedBox(height: 20),
-                      _LifeEquivalent(provider: provider),
-                      const SizedBox(height: 20),
-                      _QuickActions(),
-                      const SizedBox(height: 20),
-                      _MotivationCard(),
                       const SizedBox(height: 32),
                     ]),
                   ),
@@ -92,18 +85,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ),
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 0),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.pushNamed(context, '/panic'),
-        backgroundColor: AppColors.panicRed,
-        icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
-        label: const Text('PANIC',
-            style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1)),
-      )
-          .animate(onPlay: (c) => c.repeat())
-          .shimmer(duration: 2000.ms, color: Colors.white.withOpacity(0.3)),
     );
   }
 }
@@ -115,41 +96,101 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Good morning 👋',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                const SizedBox(height: 4),
-                const Text('Stay strong today',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700)),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Good morning, Hero 👋',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 6),
+              const Text('Stay strong today',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 26,
+                      letterSpacing: -0.5,
+                      fontWeight: FontWeight.w800)),
+            ],
           ),
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/settings'),
             child: Container(
-              width: 42,
-              height: 42,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.surface,
+                shape: BoxShape.circle,
                 border: Border.all(color: AppColors.border),
               ),
-              child: const Icon(Icons.settings_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              child: const Icon(Icons.settings_outlined, color: AppColors.textPrimary, size: 22),
             ),
           ),
         ],
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
+  }
+}
+
+class _QuickActionsGrid extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _QuickAction(icon: Icons.edit_note_rounded, label: 'Journal', color: AppColors.primary, route: '/journal'),
+        _QuickAction(icon: Icons.air_rounded, label: 'Breathe', color: AppColors.accent, route: '/breathing'),
+        _QuickAction(icon: Icons.shield_rounded, label: 'Block', color: AppColors.warning, route: '/block'),
+        _QuickAction(icon: Icons.warning_rounded, label: 'Panic', color: AppColors.panicRed, route: '/panic', isPanic: true),
+      ],
+    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String route;
+  final bool isPanic;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.route,
+    this.isPanic = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: isPanic ? color : color.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: isPanic ? null : Border.all(color: color.withOpacity(0.3)),
+              boxShadow: isPanic ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, spreadRadius: 2)] : null,
+            ),
+            child: Icon(icon, color: isPanic ? Colors.white : color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: isPanic ? color : AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: isPanic ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
