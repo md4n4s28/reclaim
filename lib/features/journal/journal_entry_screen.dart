@@ -72,12 +72,6 @@ class _JournalEntryScreenState extends State<JournalEntryScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(widget.entry == null ? 'New Entry' : 'Edit Entry'),
-        actions: [
-          TextButton(
-            onPressed: _saveEntry,
-            child: const Text('Save', style: TextStyle(color: AppColors.primary)),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -85,12 +79,12 @@ class _JournalEntryScreenState extends State<JournalEntryScreen> {
           _MoodSelector(
             mood: _mood,
             onChanged: (v) => setState(() => _mood = v),
-          ).animate().fadeIn(delay: 100.ms),
+          ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0),
           const SizedBox(height: 20),
           _UrgeIntensitySlider(
             intensity: _urgeIntensity,
             onChanged: (v) => setState(() => _urgeIntensity = v.toInt()),
-          ).animate().fadeIn(delay: 200.ms),
+          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
           const SizedBox(height: 20),
           _TriggerSelector(
             triggers: _commonTriggers,
@@ -104,23 +98,44 @@ class _JournalEntryScreenState extends State<JournalEntryScreen> {
                 }
               });
             },
-          ).animate().fadeIn(delay: 300.ms),
+          ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0),
           const SizedBox(height: 20),
           _TextField(
             controller: _thoughtsController,
             label: '💭 Your Thoughts',
-            hint: 'What\'s on your mind? How are you feeling?',
-            maxLines: 5,
-          ).animate().fadeIn(delay: 400.ms),
+            hint: 'What\'s on your mind? How are you feeling right now?',
+            maxLines: 8,
+          ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1, end: 0),
           const SizedBox(height: 20),
           _TextField(
             controller: _gratitudeController,
             label: '🙏 Gratitude',
             hint: 'What are you grateful for today?',
             maxLines: 3,
-          ).animate().fadeIn(delay: 500.ms),
+          ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1, end: 0),
+          const SizedBox(height: 100), // Padding for FAB
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: _saveEntry,
+            icon: const Icon(Icons.save_rounded),
+            label: const Text('Save Journal Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 8,
+              shadowColor: AppColors.primary.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2, end: 0),
     );
   }
 

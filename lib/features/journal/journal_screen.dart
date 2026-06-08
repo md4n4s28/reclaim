@@ -83,7 +83,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   },
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 100), // padding for FAB
                   itemCount: _entries.length,
                   itemBuilder: (context, index) {
                     return _EntryCard(
@@ -99,24 +99,38 @@ class _JournalScreenState extends State<JournalScreen> {
                         _loadEntries();
                       },
                       onDelete: () => _deleteEntry(_entries[index].id),
-                    ).animate().fadeIn(delay: Duration(milliseconds: index * 50));
+                    ).animate().fadeIn(delay: Duration(milliseconds: index * 50)).slideY(begin: 0.1, end: 0);
                   },
                 ),
-      bottomNavigationBar: const BottomNav(currentIndex: 0),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _entries.isNotEmpty
-          ? FloatingActionButton(
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const JournalEntryScreen(),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const JournalEntryScreen(),
+                      ),
+                    );
+                    _loadEntries();
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Write New Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 8,
+                    shadowColor: AppColors.primary.withOpacity(0.5),
                   ),
-                );
-                _loadEntries();
-              },
-              backgroundColor: AppColors.primary,
-              child: const Icon(Icons.add_rounded),
-            )
+                ),
+              ),
+            ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0)
           : null,
     );
   }
@@ -281,45 +295,90 @@ class _EntryCard extends StatelessWidget {
               ],
             ),
             if (entry.thoughts.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  entry.thoughts,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+            if (entry.gratitude.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(
-                entry.thoughts,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.4,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('🙏 Grateful for:', style: TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(
+                      entry.gratitude,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
             if (entry.triggers.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: entry.triggers.take(3).map((trigger) {
+                spacing: 8,
+                runSpacing: 8,
+                children: entry.triggers.map((trigger) {
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppColors.warning.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: AppColors.warning.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
                     ),
                     child: Text(
                       trigger,
                       style: const TextStyle(
                         color: AppColors.warning,
                         fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   );
                 }).toList(),
               ),
             ],
+            const SizedBox(height: 16),
+            const Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
+                  label: const Text('Edit Entry', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                ),
+              ],
+            ),
           ],
         ),
       ),

@@ -34,20 +34,10 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Request admin privileges on first launch
-        if (!isAdminActive()) {
-            requestAdminPrivileges()
-        }
-        
-        // Fix black screen: Set window background immediately
-        window.setBackgroundDrawableResource(android.R.color.white)
     }
     
     override fun onResume() {
         super.onResume()
-        // Ensure we're not showing black screen on resume
-        window.setBackgroundDrawableResource(android.R.color.white)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

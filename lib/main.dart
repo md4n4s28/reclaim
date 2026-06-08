@@ -14,9 +14,12 @@ import 'features/settings/settings_screen.dart';
 import 'features/settings/advanced_protection_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/breathing/breathing_screen.dart';
+import 'core/notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize();
+  
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

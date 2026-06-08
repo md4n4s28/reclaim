@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../core/widgets.dart';
 import '../../core/app_provider.dart';
 
 class PanicScreen extends StatefulWidget {
@@ -11,85 +12,35 @@ class PanicScreen extends StatefulWidget {
   State<PanicScreen> createState() => _PanicScreenState();
 }
 
-class _PanicScreenState extends State<PanicScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _breathController;
-  late Animation<double> _breathAnim;
-  int _phase = 0; // 0=inhale, 1=hold, 2=exhale
-  int _cycleCount = 0;
-
-  static const _phaseLabels = ['Inhale', 'Hold', 'Exhale'];
-  static const _phaseColors = [AppColors.primary, AppColors.warning, AppColors.accent];
-
-  @override
-  void initState() {
-    super.initState();
-    _breathController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    );
-    _breathAnim = Tween<double>(begin: 0.55, end: 1.0).animate(
-      CurvedAnimation(parent: _breathController, curve: Curves.easeInOut),
-    );
-    _runPhase();
-  }
-
-  Future<void> _runPhase() async {
-    while (mounted) {
-      // Inhale
-      setState(() => _phase = 0);
-      await _breathController.forward(from: 0).orCancel.catchError((_) {});
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      // Hold
-      setState(() => _phase = 1);
-      await Future.delayed(const Duration(seconds: 4));
-      if (!mounted) return;
-
-      // Exhale
-      setState(() => _phase = 2);
-      await _breathController.reverse().orCancel.catchError((_) {});
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      setState(() => _cycleCount++);
-    }
-  }
-
-  @override
-  void dispose() {
-    _breathController.dispose();
-    super.dispose();
-  }
-
+class _PanicScreenState extends State<PanicScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Panic Mode'),
+        title: const Text('EMERGENCY MODE', style: TextStyle(color: AppColors.panicRed, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         child: Column(
           children: [
-            _BreathingCircle(
-              animation: _breathAnim,
-              phase: _phaseLabels[_phase],
-              color: _phaseColors[_phase],
-              cycles: _cycleCount,
-            ),
+            const Text(
+              "You are in control. This urge will pass. Do not give in to 5 seconds of pleasure for days of regret.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16, height: 1.4),
+            ).animate().fadeIn(delay: 100.ms),
             const SizedBox(height: 32),
-            const _GroundingSection(),
-            const SizedBox(height: 20),
-            const _QuickActionsSection(),
-            const SizedBox(height: 20),
-            const _IResisted(),
-            const SizedBox(height: 32),
+            const _GroundingChecklist(),
+            const SizedBox(height: 40),
+            const _ActionGrid(),
+            const SizedBox(height: 30),
+            const _IResistedButton(),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -97,205 +48,185 @@ class _PanicScreenState extends State<PanicScreen> with SingleTickerProviderStat
   }
 }
 
-class _BreathingCircle extends StatelessWidget {
-  final Animation<double> animation;
-  final String phase;
-  final Color color;
-  final int cycles;
+class _GroundingChecklist extends StatefulWidget {
+  const _GroundingChecklist();
 
-  const _BreathingCircle({
-    required this.animation,
-    required this.phase,
+  @override
+  State<_GroundingChecklist> createState() => _GroundingChecklistState();
+}
+
+class _GroundingChecklistState extends State<_GroundingChecklist> {
+  final List<bool> _checked = List.filled(5, false);
+
+  final List<Map<String, dynamic>> _steps = [
+    {'number': '5', 'text': 'Things you can SEE', 'icon': Icons.visibility_rounded, 'color': AppColors.primary},
+    {'number': '4', 'text': 'Things you can FEEL', 'icon': Icons.pan_tool_rounded, 'color': AppColors.accent},
+    {'number': '3', 'text': 'Things you can HEAR', 'icon': Icons.hearing_rounded, 'color': AppColors.warning},
+    {'number': '2', 'text': 'Things you can SMELL', 'icon': Icons.local_florist_rounded, 'color': AppColors.streakOrange},
+    {'number': '1', 'text': 'Thing you can TASTE', 'icon': Icons.restaurant_rounded, 'color': AppColors.danger},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '5-4-3-2-1 GROUNDING',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Find these things in your room right now and check them off to bring your mind back to reality.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        ..._steps.asMap().entries.map((entry) {
+          final index = entry.key;
+          final step = entry.value;
+          final isChecked = _checked[index];
+          final color = step['color'] as Color;
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _checked[index] = !_checked[index];
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: isChecked ? color.withOpacity(0.1) : AppColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isChecked ? color.withOpacity(0.5) : AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: isChecked ? color : color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        step['number'] as String,
+                        style: TextStyle(
+                          color: isChecked ? Colors.white : color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      step['text'] as String,
+                      style: TextStyle(
+                        color: isChecked ? color : AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: isChecked ? FontWeight.w700 : FontWeight.w600,
+                        decoration: isChecked ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isChecked ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                    color: isChecked ? color : AppColors.textMuted,
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: Duration(milliseconds: 200 + (index * 100))).slideX(begin: 0.1, end: 0),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('IMMEDIATE ACTIONS', style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _ActionCard(icon: Icons.water_drop_rounded, title: 'Cold Water', subtitle: 'Splash face', color: AppColors.primary)),
+            const SizedBox(width: 16),
+            Expanded(child: _ActionCard(icon: Icons.fitness_center_rounded, title: 'Push-ups', subtitle: 'Do 15 now', color: AppColors.warning)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _ActionCard(icon: Icons.directions_walk_rounded, title: 'Walk', subtitle: 'Leave room', color: AppColors.accent)),
+            const SizedBox(width: 16),
+            Expanded(child: _ActionCard(icon: Icons.phone_rounded, title: 'Call Friend', subtitle: 'Accountability', color: AppColors.streakOrange, isPhone: true)),
+          ],
+        ),
+      ],
+    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0);
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final bool isPhone;
+
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
     required this.color,
-    required this.cycles,
+    this.isPhone = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Text(
-          'Breathe with the circle',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+    return GestureDetector(
+      onTap: () {
+        if (isPhone) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add emergency contact in Settings')));
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
         ),
-        const SizedBox(height: 24),
-        AnimatedBuilder(
-          animation: animation,
-          builder: (_, __) {
-            final size = 160.0 * animation.value;
-            return SizedBox(
-              width: 220,
-              height: 220,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Outer glow rings
-                  for (int i = 0; i < 3; i++)
-                    Transform.scale(
-                      scale: (animation.value + i * 0.08).clamp(0.0, 1.5),
-                      child: Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: color.withOpacity(0.08 - i * 0.02),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  // Main breathing circle
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color.withOpacity(0.15),
-                      border: Border.all(color: color.withOpacity(0.6), width: 2),
-                      boxShadow: [
-                        BoxShadow(color: color.withOpacity(0.3), blurRadius: 30, spreadRadius: 5),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: Text(
-                            phase,
-                            key: ValueKey(phase),
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text('4-4-4',
-                            style: TextStyle(color: color.withOpacity(0.6), fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 16),
-        if (cycles > 0)
-          Text(
-            '$cycles cycle${cycles > 1 ? 's' : ''} completed 🎉',
-            style: const TextStyle(color: AppColors.accent, fontSize: 13),
-          ).animate().fadeIn(),
-      ],
-    );
-  }
-}
-
-class _GroundingSection extends StatelessWidget {
-  const _GroundingSection();
-
-  static const _items = [
-    ['👁️', 'Name 5 things you can see right now'],
-    ['🦶', 'Feel your feet firmly on the ground'],
-    ['🧊', 'Splash cold water on your face'],
-    ['🚶', 'Stand up and move your body'],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Grounding Techniques',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        for (int i = 0; i < _items.length; i++)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Text(_items[i][0], style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(_items[i][1],
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-                ),
-              ],
-            ),
-          ).animate().fadeIn(delay: Duration(milliseconds: i * 80)).slideX(begin: 0.1, end: 0),
-      ],
-    );
-  }
-}
-
-class _QuickActionsSection extends StatelessWidget {
-  const _QuickActionsSection();
-
-  static const _actions = [
-    ['💪', 'Do 10\nPush-ups', 0xFF58A6FF],
-    ['🚶', 'Walk\n2 minutes', 0xFF3FB950],
-    ['💧', 'Drink\ncold water', 0xFFD29922],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Quick Actions',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Row(
+        child: Column(
           children: [
-            for (int i = 0; i < _actions.length; i++) ...[
-              if (i > 0) const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Color(_actions[i][2] as int).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Color(_actions[i][2] as int).withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(_actions[i][0] as String, style: const TextStyle(fontSize: 24)),
-                      const SizedBox(height: 6),
-                      Text(
-                        _actions[i][1] as String,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(_actions[i][2] as int),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _IResisted extends StatelessWidget {
-  const _IResisted();
+class _IResistedButton extends StatelessWidget {
+  const _IResistedButton();
 
   @override
   Widget build(BuildContext context) {
@@ -305,9 +236,8 @@ class _IResisted extends StatelessWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('💪 Urge resisted! You\'re getting stronger.'),
+              content: Text('💪 Victory Logged! You are getting stronger.'),
               backgroundColor: AppColors.accent,
-              behavior: SnackBarBehavior.floating,
             ),
           );
           Navigator.pop(context);
@@ -315,25 +245,21 @@ class _IResisted extends StatelessWidget {
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.accent.withOpacity(0.2), AppColors.primary.withOpacity(0.1)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.accent.withOpacity(0.4)),
-        ),
-        child: const Column(
-          children: [
-            Text('✅ I Resisted This Urge',
-                style: TextStyle(
-                    color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.w700)),
-            SizedBox(height: 4),
-            Text('Tap to log your victory and return',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          gradient: const LinearGradient(colors: [AppColors.accent, Color(0xFF059669)]),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: AppColors.accent.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 8)),
           ],
         ),
+        child: const Center(
+          child: Text(
+            'I SURVIVED THIS URGE',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 1.5),
+          ),
+        ),
       ),
-    ).animate().fadeIn(delay: 400.ms).scale(begin: const Offset(0.95, 0.95));
+    ).animate().fadeIn(delay: 500.ms).scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOut);
   }
 }

@@ -15,7 +15,6 @@ class StreakTimer extends StatefulWidget {
 
 class _StreakTimerState extends State<StreakTimer> {
   Timer? _timer;
-  Duration _elapsed = Duration.zero;
 
   @override
   void initState() {
@@ -26,15 +25,13 @@ class _StreakTimerState extends State<StreakTimer> {
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
-        setState(() {
-          _elapsed += const Duration(seconds: 1);
-        });
+        setState(() {}); // Trigger rebuild to update elapsed time
       }
     });
   }
 
   String _formatDuration(Duration d) {
-    final hours = d.inHours;
+    final hours = d.inHours.remainder(24);
     final minutes = d.inMinutes.remainder(60);
     final seconds = d.inSeconds.remainder(60);
     return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
@@ -43,6 +40,16 @@ class _StreakTimerState extends State<StreakTimer> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
+    
+    // Calculate accurate elapsed time
+    Duration elapsed = Duration.zero;
+    int days = 0;
+    
+    if (provider.streakStartTime != null) {
+      final now = DateTime.now();
+      elapsed = now.difference(provider.streakStartTime!);
+      days = elapsed.inDays;
+    }
 
     return Container(
       width: double.infinity,
@@ -93,7 +100,7 @@ class _StreakTimerState extends State<StreakTimer> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${provider.streakDays}',
+                '$days',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 56,
@@ -115,7 +122,7 @@ class _StreakTimerState extends State<StreakTimer> {
           ),
           const SizedBox(height: 12),
           Text(
-            _formatDuration(_elapsed),
+            _formatDuration(elapsed),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 24,

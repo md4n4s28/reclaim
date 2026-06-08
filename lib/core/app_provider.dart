@@ -21,6 +21,7 @@ class AppProvider extends ChangeNotifier {
   // ── Advanced Stats ──
   int _longestStreak = 0;
   List<DateTime> _relapses = [];
+  DateTime? _streakStartTime;
 
   int get streakDays => _streakDays;
   int get urgesResisted => _urgesResisted;
@@ -33,6 +34,7 @@ class AppProvider extends ChangeNotifier {
   bool get hasCompletedOnboarding => _hasCompletedOnboarding;
   int get longestStreak => _longestStreak;
   List<DateTime> get relapses => List.unmodifiable(_relapses);
+  DateTime? get streakStartTime => _streakStartTime;
 
   // ── New getters ──
   bool get isVpnRunning => _isVpnRunning;
@@ -65,6 +67,18 @@ class AppProvider extends ChangeNotifier {
     _hasCompletedOnboarding = prefs.getBool('onboarding_completed') ?? false;
     final lastVisit = prefs.getString('lastVisit');
     if (lastVisit != null) _lastVisitDate = DateTime.tryParse(lastVisit);
+    
+    final streakStartStr = prefs.getString('streakStartTime');
+    if (streakStartStr != null) {
+      _streakStartTime = DateTime.tryParse(streakStartStr);
+    } else {
+      if (_relapses.isNotEmpty) {
+        _streakStartTime = _relapses.last;
+      } else {
+        _streakStartTime = DateTime.now();
+        await prefs.setString('streakStartTime', _streakStartTime!.toIso8601String());
+      }
+    }
     
     // Load blocked sites from file
     await _loadBlockedSitesFromFile();
@@ -173,7 +187,9 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> registerRelapse() async {
-    _relapses.add(DateTime.now());
+    final now = DateTime.now();
+    _relapses.add(now);
+    _streakStartTime = now;
     _streakDays = 0; // Reset streak
     await _save();
     notifyListeners();
@@ -253,6 +269,9 @@ class AppProvider extends ChangeNotifier {
     await prefs.setStringList('sites', _blockedSites);
     await prefs.setStringList('dns', _dnsList);
     await prefs.setBool('onboarding_completed', _hasCompletedOnboarding);
+    if (_streakStartTime != null) {
+      await prefs.setString('streakStartTime', _streakStartTime!.toIso8601String());
+    }
     if (_pin != null) await prefs.setString('pin', _pin!);
     if (_lastVisitDate != null) {
       await prefs.setString('lastVisit', _lastVisitDate!.toIso8601String());
