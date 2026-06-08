@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reclaim</string>
+    <string name="accessibility_service_description">Reclaim monitors browser activity to block adult content and help you build self-control. No data is collected or sent externally.</string>
+    <string name="device_admin_description">Reclaim requires device admin privileges to prevent accidental uninstallation and ensure continuous protection. This helps maintain your commitment to self-control.</string>
+</resources>

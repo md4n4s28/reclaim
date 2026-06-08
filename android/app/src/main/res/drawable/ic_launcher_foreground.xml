@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shield -->
+    <path
+        android:fillColor="#16E0BD"
+        android:pathData="M54,24 L34,32 L34,50 Q34,66 54,78 Q74,66 74,50 L74,32 Z" />
+    <!-- Inner shield -->
+    <path
+        android:fillColor="#1A1A2E"
+        android:pathData="M54,32 L40,38 L40,50 Q40,62 54,71 Q68,62 68,50 L68,38 Z" />
+    <!-- Check mark -->
+    <path
+        android:fillColor="#16E0BD"
+        android:strokeWidth="3"
+        android:strokeColor="#16E0BD"
+        android:pathData="M46,52 L51,57 L62,44" />
+</vector>
