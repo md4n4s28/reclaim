@@ -126,4 +126,33 @@ class ProtectionService {
       // Handle error silently
     }
   }
+
+  // ── Usage Stats ──
+  static const _usageChannel = MethodChannel('com.reclaim.app/usage');
+
+  static Future<bool> checkUsagePermission() async {
+    try {
+      return await _usageChannel.invokeMethod<bool>('checkUsagePermission') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<void> requestUsagePermission() async {
+    try {
+      await _usageChannel.invokeMethod('requestUsagePermission');
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  static Future<Map<String, int>> getDailyUsage() async {
+    try {
+      final Map<dynamic, dynamic>? result = await _usageChannel.invokeMethod<Map<dynamic, dynamic>>('getDailyUsage');
+      if (result == null) return {};
+      return result.map((key, value) => MapEntry(key.toString(), value as int));
+    } catch (e) {
+      return {};
+    }
+  }
 }

@@ -23,6 +23,11 @@ class AppProvider extends ChangeNotifier {
   List<DateTime> _relapses = [];
   DateTime? _streakStartTime;
 
+  // ── Usage Stats ──
+  int _dailyUsageMinutes = 0;
+  Map<String, int> _topApps = {};
+  bool _hasUsagePermission = false;
+
   int get streakDays => _streakDays;
   int get urgesResisted => _urgesResisted;
   int get minutesSaved => _minutesSaved;
@@ -35,6 +40,11 @@ class AppProvider extends ChangeNotifier {
   int get longestStreak => _longestStreak;
   List<DateTime> get relapses => List.unmodifiable(_relapses);
   DateTime? get streakStartTime => _streakStartTime;
+
+  // ── Usage Getters ──
+  int get dailyUsageMinutes => _dailyUsageMinutes;
+  Map<String, int> get topApps => _topApps;
+  bool get hasUsagePermission => _hasUsagePermission;
 
   // ── New getters ──
   bool get isVpnRunning => _isVpnRunning;
@@ -247,7 +257,24 @@ class AppProvider extends ChangeNotifier {
     // _isVpnRunning = await ProtectionService.isVpnRunning(); // Disabled to simplify
     _isAccessibilityEnabled = await ProtectionService.isAccessibilityEnabled();
     _isAdminActive = await AdminService.isAdminActive();
+    await refreshUsageStats();
     notifyListeners();
+  }
+
+  Future<void> refreshUsageStats() async {
+    _hasUsagePermission = await ProtectionService.checkUsagePermission();
+    if (_hasUsagePermission) {
+      final usage = await ProtectionService.getDailyUsage();
+      int totalMs = 0;
+      usage.forEach((key, value) => totalMs += value);
+      _dailyUsageMinutes = totalMs ~/ 60000;
+      _topApps = usage;
+    }
+    notifyListeners();
+  }
+
+  Future<void> requestUsagePermission() async {
+    await ProtectionService.requestUsagePermission();
   }
 
   // ────────────────────────────────────────────────────────────────────────

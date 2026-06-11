@@ -1,7 +1,9 @@
 package com.reclaim.app
 
 import android.app.Activity
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
+import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -10,18 +12,21 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.Calendar
 
 class MainActivity : FlutterActivity() {
 
     private val VPN_CHANNEL = "com.reclaim.app/vpn"
     private val ADMIN_CHANNEL = "com.reclaim.app/admin"
     private val PROTECTION_CHANNEL = "com.reclaim.app/protection"
+    private val USAGE_CHANNEL = "com.reclaim.app/usage"
     private val VPN_REQUEST_CODE = 100
     private val ADMIN_REQUEST_CODE = 101
 
@@ -145,6 +150,69 @@ class MainActivity : FlutterActivity() {
                             result.success(false)
                         }
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Usage Stats Channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, USAGE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkUsagePermission" -> {
+                    val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+                    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName)
+                    }
+                    result.success(mode == AppOpsManager.MODE_ALLOWED)
+                }
+                "requestUsagePermission" -> {
+                    try {
+                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                "getDailyUsage" -> {
+                    val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                    
+                    // Strictly calculate today 00:00:00
+                    val calendar = Calendar.getInstance()
+                    calendar.set(Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(Calendar.MINUTE, 0)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    
+                    val start = calendar.timeInMillis
+                    val end = System.currentTimeMillis()
+
+                    // queryUsageStats is more accurate than queryAndAggregateUsageStats for "today only"
+                    val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+                    val resultMap = mutableMapOf<String, Long>()
+                    
+                    // Filter out noise and system apps
+                    val systemPackages = listOf("com.android.launcher", "com.android.systemui", "com.reclaim.app", "android")
+
+                    for (stat in stats) {
+                        val pkg = stat.packageName
+                        if (stat.totalTimeInForeground > 0 && 
+                            !systemPackages.any { pkg.startsWith(it) } &&
+                            stat.lastTimeUsed >= start) {
+                            
+                            // Because queryUsageStats can return multiple entries for different time slices, 
+                            // we always take the maximum or the latest total for that interval.
+                            val existing = resultMap[pkg] ?: 0L
+                            if (stat.totalTimeInForeground > existing) {
+                                resultMap[pkg] = stat.totalTimeInForeground
+                            }
+                        }
+                    }
+                    result.success(resultMap)
                 }
                 else -> result.notImplemented()
             }

@@ -18,6 +18,30 @@ class ProgressScreen extends StatefulWidget {
 class _ProgressScreenState extends State<ProgressScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  List<Map<String, String>> _dailyVideos = [];
+
+  final List<Map<String, String>> _allVideos = [
+    {'title': 'How to Quit Porn Forever', 'author': 'Dr. Trish', 'url': 'https://www.youtube.com/watch?v=1'},
+    {'title': 'The Huberman Lab on Dopamine', 'author': 'Andrew Huberman', 'url': 'https://www.youtube.com/watch?v=2'},
+    {'title': 'Why You Lack Discipline', 'author': 'Hamza', 'url': 'https://www.youtube.com/watch?v=3'},
+    {'title': 'The Great Porn Experiment', 'author': 'Gary Wilson', 'url': 'https://www.youtube.com/watch?v=4'},
+    {'title': 'Dopamine Detox Guide', 'author': 'Better Than Yesterday', 'url': 'https://www.youtube.com/watch?v=5'},
+    {'title': 'Overcoming Sexual Addiction', 'author': 'Terry Crews', 'url': 'https://www.youtube.com/watch?v=6'},
+    {'title': 'Stop Watching Porn', 'author': 'Improvement Pill', 'url': 'https://www.youtube.com/watch?v=7'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Shuffle and pick 4 random videos
+    _allVideos.shuffle();
+    _dailyVideos = _allVideos.take(4).toList();
+    
+    // Refresh usage stats
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppProvider>().refreshUsageStats();
+    });
+  }
 
   // Local state for mocked habits
   final Map<String, bool> _habits = {
@@ -89,7 +113,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             const SizedBox(height: 24),
             _buildHabitsSection(),
             const SizedBox(height: 24),
-            _buildScreenTimeSection(),
+            _buildScreenTimeSection(provider),
             const SizedBox(height: 24),
             _buildYouTubeSuggestions(),
             const SizedBox(height: 40),
@@ -279,7 +303,43 @@ class _ProgressScreenState extends State<ProgressScreen> {
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
   }
 
-  Widget _buildScreenTimeSection() {
+  Widget _buildScreenTimeSection(AppProvider provider) {
+    if (!provider.hasUsagePermission) {
+      return GlowCard(
+        glowColor: AppColors.warning,
+        child: Column(
+          children: [
+            const SectionTitle(title: '📱 Daily Phone Usage'),
+            const SizedBox(height: 12),
+            const Text(
+              'Permission required to show actual screen time and digital wellbeing stats.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            PrimaryButton(
+              label: 'Grant Usage Permission',
+              onTap: () => provider.requestUsagePermission(),
+              color: AppColors.warning,
+              icon: Icons.security_rounded,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final usage = provider.dailyUsageMinutes;
+    final hours = usage ~/ 60;
+    final minutes = usage % 60;
+    
+    // Sort and get top 2 apps
+    final sortedApps = provider.topApps.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final topAppsLabel = sortedApps.take(2).map((e) {
+      final name = e.key.split('.').last;
+      final m = e.value ~/ 60000;
+      return '${name.capitalize()} (${m}m)';
+    }).join(', ');
+
     return GlowCard(
       glowColor: AppColors.warning,
       child: Column(
@@ -298,57 +358,66 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 child: const Icon(Icons.smartphone_rounded, color: AppColors.warning, size: 28),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('4h 25m', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
-                    SizedBox(height: 4),
-                    Text('-12% compared to last week', style: TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text('${hours}h ${minutes}m', style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    const Text('Actual usage tracked today', style: TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const LinearProgressIndicator(
-            value: 0.6, // Mock value
+          LinearProgressIndicator(
+            value: (usage / 480).clamp(0.0, 1.0), // 8 hour goal
             backgroundColor: AppColors.border,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
-            borderRadius: BorderRadius.all(Radius.circular(10)),
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.warning),
+            borderRadius: const BorderRadius.all(Radius.circular(10)),
             minHeight: 8,
           ),
           const SizedBox(height: 8),
-          const Text('Top apps: Instagram (1h 10m), Chrome (45m)', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text('Top apps: $topAppsLabel', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
         ],
       ),
     ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildYouTubeSuggestions() {
-    final videos = [
-      {'title': 'How to Quit Porn Forever', 'author': 'Dr. Trish', 'url': 'https://www.youtube.com/watch?v=1'},
-      {'title': 'The Huberman Lab on Dopamine', 'author': 'Andrew Huberman', 'url': 'https://www.youtube.com/watch?v=2'},
-      {'title': 'Why You Lack Discipline', 'author': 'Hamza', 'url': 'https://www.youtube.com/watch?v=3'},
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionTitle(title: '🧠 Rewire Your Brain'),
         const SizedBox(height: 12),
         SizedBox(
-          height: 140,
+          height: 150,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: videos.length,
+            itemCount: _dailyVideos.length,
             itemBuilder: (context, index) {
-              final video = videos[index];
+              final video = _dailyVideos[index];
               return GestureDetector(
                 onTap: () async {
-                  // In a real app, launch the URL
-                  // await launchUrl(Uri.parse(video['url']!));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening video...')));
+                  final uri = Uri.parse(video['url']!);
+                  try {
+                    // Try to launch with external application (YouTube App)
+                    final success = await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                    if (!success && mounted) {
+                      // Fallback: If external app fails, try platform default
+                      await launchUrl(uri);
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not open video')),
+                      );
+                    }
+                  }
                 },
                 child: Container(
                   width: 240,
@@ -399,6 +468,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
       ],
     ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1, end: 0);
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
 
