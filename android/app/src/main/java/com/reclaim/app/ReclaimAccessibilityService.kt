@@ -219,7 +219,6 @@ class ReclaimAccessibilityService : AccessibilityService() {
             // Block access to DNS, Accessibility Service settings, and uninstall pages
             // Covers Motorola, Samsung, Xiaomi, and stock Android variations
             val cheatKeywords = listOf(
-                "private dns", 
                 "accessibility service",
                 "device admin",
                 "device administrators",
@@ -236,7 +235,7 @@ class ReclaimAccessibilityService : AccessibilityService() {
 
             // Aggressively block searching for these terms in the Settings app
             if (node.className == "android.widget.EditText" || node.className == "android.widget.AutoCompleteTextView") {
-                if (combinedText.contains("admin") || combinedText.contains("dns") || combinedText.contains("uninstall")) {
+                if (combinedText.contains("admin") || combinedText.contains("uninstall")) {
                     return true
                 }
             }

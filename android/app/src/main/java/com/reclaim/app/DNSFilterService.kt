@@ -21,13 +21,13 @@ import java.lang.reflect.Method
 object DNSFilterService {
     const val TAG = "ReclaimDNS"
 
-    // Family-safe DNS servers that block adult content
-    private val FAMILY_DNS = mapOf(
-        "cloudflare" to listOf("1.1.1.3", "1.0.0.3"),
+    // Standard DNS servers
+    private val DEFAULT_DNS = mapOf(
+        "cloudflare" to listOf("1.1.1.1", "1.0.0.1"),
         "quad9" to listOf("9.9.9.9", "149.112.112.9"),
-        "opendns" to listOf("208.67.222.123", "208.67.220.123"),
-        "adguard" to listOf("94.140.14.15", "94.140.15.16"),
-        "cleanbrowsing" to listOf("185.228.168.168", "185.228.169.168")
+        "opendns" to listOf("208.67.222.222", "208.67.220.220"),
+        "adguard" to listOf("94.140.14.14", "94.140.15.15"),
+        "cleanbrowsing" to listOf("185.228.168.10", "185.228.169.11")
     )
 
     /**
@@ -51,9 +51,9 @@ object DNSFilterService {
                     String::class.java
                 )
                 if (setPrivateDns != null) {
-                    // Use Cloudflare Family DNS
-                    setPrivateDns.invoke(dpm, "1.1.1.3")
-                    Log.d(TAG, "✓ Private DNS set to 1.1.1.3 (Cloudflare Family)")
+                    // Use AdGuard Default DNS
+                    setPrivateDns.invoke(dpm, "dns.adguard-dns.com")
+                    Log.d(TAG, "✓ Private DNS set to dns.adguard-dns.com (AdGuard Default)")
                     return
                 }
             } catch (e: Exception) {
@@ -69,7 +69,7 @@ object DNSFilterService {
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting family DNS", e)
+            Log.e(TAG, "Error setting DNS", e)
         }
     }
 
@@ -84,9 +84,9 @@ object DNSFilterService {
             // Note: This requires Device Owner status on Android 11+
             Log.d(TAG, "Applying DHCP DNS override through WifiManager")
 
-            // Cloudflare Family Protection DNS
-            val dns1 = "1.1.1.3"
-            val dns2 = "1.0.0.3"
+            // AdGuard Default DNS
+            val dns1 = "94.140.14.14"
+            val dns2 = "94.140.15.15"
 
             // This would require reflection or Device Owner capabilities
             // For now, we log that this would be attempted
@@ -100,9 +100,9 @@ object DNSFilterService {
 
     fun getDNSStatus(dpm: DevicePolicyManager, adminComponent: ComponentName): String {
         return if (dpm.isAdminActive(adminComponent)) {
-            "✓ Family DNS Active"
+            "✓ DNS Active"
         } else {
-            "✗ Family DNS Inactive"
+            "✗ DNS Inactive"
         }
     }
 }

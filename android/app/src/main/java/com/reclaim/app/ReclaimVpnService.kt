@@ -36,11 +36,12 @@ class ReclaimVpnService : VpnService() {
         const val CHANNEL_ID = "reclaim_vpn"
         const val TAG = "ReclaimVPN"
 
-        // Default family-safe DNS
+        // Default DNS
         private val DEFAULT_DNS = listOf(
-            "185.228.168.168", // CleanBrowsing Family Filter
-            "1.1.1.3",          // Cloudflare Family
-            "94.140.14.15"      // AdGuard Family Protection
+            "1.1.1.1",          // Cloudflare
+            "1.0.0.1",
+            "94.140.14.14",     // AdGuard Default
+            "94.140.15.15"
         )
 
         @Volatile
@@ -80,7 +81,7 @@ class ReclaimVpnService : VpnService() {
                 .addAddress("10.0.0.2", 32)
                 .addDnsServer("10.0.0.1")
                 .addRoute("10.0.0.1", 32) // Only intercept DNS
-                .setSession("Reclaim - Family Protection")
+                .setSession("Reclaim - DNS Protection")
                 .setMtu(1500)
                 .setBlocking(true)
                 .establish()
@@ -246,7 +247,7 @@ class ReclaimVpnService : VpnService() {
     }
 
     /**
-     * Forward DNS query to upstream family DNS and write response back to TUN.
+     * Forward DNS query to upstream DNS and write response back to TUN.
      */
     private fun forwardAndRespond(
         originalPacket: ByteArray, originalLength: Int,

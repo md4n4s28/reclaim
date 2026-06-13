@@ -319,20 +319,17 @@ class AppProvider extends ChangeNotifier {
   ];
   
   static final List<String> _defaultDNS = [
-    // AdGuard DNS - Blocks ads and trackers
+    // AdGuard DNS - Standard
     '94.140.14.14',
     '94.140.15.15',
-    // AdGuard Family Protection - Blocks adult content
-    '94.140.14.15',
-    '94.140.15.16',
-    // Cloudflare Family - Blocks malware and adult content
-    '1.1.1.3',
-    '1.0.0.3',
-    // CleanBrowsing Family Filter
-    '185.228.168.168',
-    '185.228.169.168',
-    // OpenDNS FamilyShield
-    '208.67.222.123',
-    '208.67.220.123',
+    // Cloudflare - Standard
+    '1.1.1.1',
+    '1.0.0.1',
+    // Quad9
+    '9.9.9.9',
+    '149.112.112.112',
+    // OpenDNS
+    '208.67.222.222',
+    '208.67.220.220',
   ];
 }

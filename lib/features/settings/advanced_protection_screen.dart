@@ -300,7 +300,7 @@ class _StrictModeStatusCard extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             provider.isAccessibilityEnabled
-                ? '✅ Strict Mode is currently ACTIVE. System settings like Private DNS and Device Admin cannot be easily disabled.'
+                ? '✅ Strict Mode is currently ACTIVE. System settings like Device Admin cannot be easily disabled.'
                 : '❌ Strict Mode is currently INACTIVE. Enable Browser Protection to lock down your settings.',
             style: TextStyle(
               color: provider.isAccessibilityEnabled ? AppColors.accent : AppColors.danger,
