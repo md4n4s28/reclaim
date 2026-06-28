@@ -8,10 +8,12 @@ class AppProvider extends ChangeNotifier {
   int _urgesResisted = 0;
   int _minutesSaved = 0;
   List<String> _blockedSites = [];
+  List<String> _blockedPackages = [];
   String? _pin;
   DateTime? _lastVisitDate;
   List<String> _dnsList = [];
   bool _hasCompletedOnboarding = false;
+  DateTime? _installDate;
 
   // ── New protection-status fields ──
   bool _isVpnRunning = false;
@@ -32,6 +34,7 @@ class AppProvider extends ChangeNotifier {
   int get urgesResisted => _urgesResisted;
   int get minutesSaved => _minutesSaved;
   List<String> get blockedSites => List.unmodifiable(_blockedSites);
+  List<String> get blockedPackages => List.unmodifiable(_blockedPackages);
   List<String> get dnsList => List.unmodifiable(_dnsList);
   bool get hasPin => _pin != null;
   int get hoursSaved => _minutesSaved ~/ 60;
@@ -40,6 +43,7 @@ class AppProvider extends ChangeNotifier {
   int get longestStreak => _longestStreak;
   List<DateTime> get relapses => List.unmodifiable(_relapses);
   DateTime? get streakStartTime => _streakStartTime;
+  DateTime? get installDate => _installDate;
 
   // ── Usage Getters ──
   int get dailyUsageMinutes => _dailyUsageMinutes;
@@ -65,6 +69,16 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Load or set install date
+    final installDateStr = prefs.getString('installDate');
+    if (installDateStr != null) {
+      _installDate = DateTime.parse(installDateStr);
+    } else {
+      _installDate = DateTime.now();
+      await prefs.setString('installDate', _installDate!.toIso8601String());
+    }
+
     _streakDays = prefs.getInt('streak') ?? 0;
     _urgesResisted = prefs.getInt('urges') ?? 0;
     _minutesSaved = prefs.getInt('minutes') ?? 0;
@@ -95,12 +109,16 @@ class AppProvider extends ChangeNotifier {
     final savedSites = prefs.getStringList('sites') ?? [];
     _blockedSites = [..._blockedSites, ...savedSites];
     _blockedSites = _blockedSites.toSet().toList(); // Remove duplicates
+
+    // Load blocked packages
+    _blockedPackages = prefs.getStringList('blocked_packages') ?? [];
+    await ProtectionService.syncBlockedPackages(_blockedPackages);
     
     // Load DNS list
     _dnsList = prefs.getStringList('dns') ?? _defaultDNS;
     await ProtectionService.syncDnsList(_dnsList);
     
-    _checkStreak();
+    _recalculateStreak();
 
     // ── Sync blocklist to native side ──
     await ProtectionService.syncBlocklist(_blockedSites);
@@ -112,9 +130,9 @@ class AppProvider extends ChangeNotifier {
     _isAdminActive = await AdminService.isAdminActive();
 
     notifyListeners();
-    }
+  }
 
-    Future<void> enableDeviceAdmin() async {
+  Future<void> enableDeviceAdmin() async {
     try {
       final isAdmin = await AdminService.isAdminActive();
       if (!isAdmin) {
@@ -127,7 +145,7 @@ class AppProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error enabling device admin: $e");
     }
-    }
+  }
   
   Future<void> _loadBlockedSitesFromFile() async {
     try {
@@ -158,19 +176,43 @@ class AppProvider extends ChangeNotifier {
   }
 
   void _checkStreak() {
+    _recalculateStreak();
+  }
+
+  void _recalculateStreak() {
     final now = DateTime.now();
-    if (_lastVisitDate == null) {
-      _lastVisitDate = now;
-      return;
+    final today = DateTime(now.year, now.month, now.day);
+    
+    if (_installDate == null) return;
+    final installDay = DateTime(_installDate!.year, _installDate!.month, _installDate!.day);
+
+    // Calculate streak based on relapses list.
+    // The streak is the number of consecutive days from the last relapse to today.
+    if (_relapses.isEmpty) {
+      _streakDays = today.difference(installDay).inDays + 1;
+    } else {
+      // Sort relapses ascending
+      _relapses.sort();
+      final lastRelapse = _relapses.last;
+      final lastRelapseDay = DateTime(lastRelapse.year, lastRelapse.month, lastRelapse.day);
+      if (today.isBefore(lastRelapseDay)) {
+        _streakDays = 0;
+      } else {
+        _streakDays = today.difference(lastRelapseDay).inDays;
+      }
     }
-    final diff = now.difference(_lastVisitDate!).inDays;
-    if (diff >= 2) _streakDays = 0; // missed a day
+    
+    if (_streakDays < 0) _streakDays = 0;
+
+    if (_streakDays > _longestStreak) {
+      _longestStreak = _streakDays;
+    }
   }
 
   Future<void> resistUrge() async {
     _urgesResisted++;
     _minutesSaved += 15;
-    _updateStreak();
+    _recalculateStreak();
     await _save();
     notifyListeners();
   }
@@ -185,22 +227,14 @@ class AppProvider extends ChangeNotifier {
   }
 
   void _updateStreak() {
-    final now = DateTime.now();
-    if (_lastVisitDate == null ||
-        now.difference(_lastVisitDate!).inDays >= 1) {
-      _streakDays++;
-      if (_streakDays > _longestStreak) {
-        _longestStreak = _streakDays;
-      }
-      _lastVisitDate = now;
-    }
+    _recalculateStreak();
   }
 
   Future<void> registerRelapse() async {
     final now = DateTime.now();
     _relapses.add(now);
     _streakStartTime = now;
-    _streakDays = 0; // Reset streak
+    _recalculateStreak();
     await _save();
     notifyListeners();
   }
@@ -211,6 +245,26 @@ class AppProvider extends ChangeNotifier {
       _blockedSites.add(clean);
       await _save();
       await ProtectionService.syncBlocklist(_blockedSites); // Sync to native
+      notifyListeners();
+    }
+  }
+
+  Future<void> addBlockedPackage(String packageName) async {
+    final pkg = packageName.trim().toLowerCase();
+    if (pkg.isNotEmpty && !_blockedPackages.contains(pkg)) {
+      _blockedPackages.add(pkg);
+      await _save();
+      await ProtectionService.syncBlockedPackages(_blockedPackages);
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeBlockedPackage(String packageName) async {
+    final pkg = packageName.trim().toLowerCase();
+    if (_blockedPackages.contains(pkg)) {
+      _blockedPackages.remove(pkg);
+      await _save();
+      await ProtectionService.syncBlockedPackages(_blockedPackages);
       notifyListeners();
     }
   }
@@ -233,12 +287,11 @@ class AppProvider extends ChangeNotifier {
   // ──────────────────── New VPN / Protection methods ────────────────────
 
   /// Starts the VPN and refreshes the running state.
-  /// DISABLED - VPN causes internet breakage. Using Accessibility Service instead.
   Future<void> startVpn() async {
-    debugPrint("AppProvider: ⚠️ VPN disabled - Using Accessibility Service for protection");
-    // VPN is disabled to prevent internet breakage
-    // await ProtectionService.startVpn();
-    // _isVpnRunning = await ProtectionService.isVpnRunning();
+    debugPrint("AppProvider: Starting VPN for CleanBrowsing DNS protection");
+    await ProtectionService.syncDnsList(_dnsList);
+    await ProtectionService.startVpn();
+    _isVpnRunning = await ProtectionService.isVpnRunning();
     notifyListeners();
   }
 
@@ -254,7 +307,7 @@ class AppProvider extends ChangeNotifier {
 
   /// Refreshes VPN + accessibility status (call after returning from settings).
   Future<void> refreshProtectionStatus() async {
-    // _isVpnRunning = await ProtectionService.isVpnRunning(); // Disabled to simplify
+    _isVpnRunning = await ProtectionService.isVpnRunning();
     _isAccessibilityEnabled = await ProtectionService.isAccessibilityEnabled();
     _isAdminActive = await AdminService.isAdminActive();
     await refreshUsageStats();
@@ -294,6 +347,7 @@ class AppProvider extends ChangeNotifier {
     await prefs.setInt('longest_streak', _longestStreak);
     await prefs.setStringList('relapses', _relapses.map((d) => d.toIso8601String()).toList());
     await prefs.setStringList('sites', _blockedSites);
+    await prefs.setStringList('blocked_packages', _blockedPackages);
     await prefs.setStringList('dns', _dnsList);
     await prefs.setBool('onboarding_completed', _hasCompletedOnboarding);
     if (_streakStartTime != null) {
@@ -319,17 +373,8 @@ class AppProvider extends ChangeNotifier {
   ];
   
   static final List<String> _defaultDNS = [
-    // AdGuard DNS - Standard
-    '94.140.14.14',
-    '94.140.15.15',
-    // Cloudflare - Standard
-    '1.1.1.1',
-    '1.0.0.1',
-    // Quad9
-    '9.9.9.9',
-    '149.112.112.112',
-    // OpenDNS
-    '208.67.222.222',
-    '208.67.220.220',
+    // CleanBrowsing Family Filter DNS
+    '185.228.168.168',
+    '185.228.169.168',
   ];
 }

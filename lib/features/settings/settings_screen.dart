@@ -6,6 +6,7 @@ import '../../core/widgets.dart';
 import '../../core/app_provider.dart';
 import '../../core/theme_provider.dart';
 import '../../core/bottom_nav.dart';
+import '../../core/admin_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -77,6 +78,27 @@ class _AdvancedProtectionLink extends StatelessWidget {
           glowColor: AppColors.danger,
           child: Column(
             children: [
+              Consumer<AppProvider>(
+                builder: (context, provider, _) => _ToggleRow(
+                  icon: Icons.vpn_lock_rounded,
+                  iconColor: AppColors.accent,
+                  title: 'CleanBrowsing VPN DNS',
+                  subtitle: provider.isVpnRunning
+                      ? 'Family filter DNS is active'
+                      : 'VPN disabled. Tap to activate.',
+                  value: provider.isVpnRunning,
+                  onChanged: (v) async {
+                    if (v) {
+                      await provider.startVpn();
+                    } else {
+                      // Call Stop VPN directly
+                      await AdminService.stopVpn();
+                      await provider.refreshProtectionStatus();
+                    }
+                  },
+                ),
+              ),
+              const Divider(color: AppColors.border, height: 1),
               _SettingRow(
                 icon: Icons.admin_panel_settings_rounded,
                 iconColor: AppColors.danger,

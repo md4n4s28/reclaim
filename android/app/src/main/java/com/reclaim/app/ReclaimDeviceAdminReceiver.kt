@@ -20,6 +20,8 @@ class ReclaimDeviceAdminReceiver : DeviceAdminReceiver() {
         try {
             // Prevent app from being disabled
             dpm.setUninstallBlocked(adminComponent, context.packageName, true)
+            // Setup CleanBrowsing Family DNS
+            DNSFilterService.setFamilyDNS(context, dpm, adminComponent)
         } catch (e: Exception) {
             // Some devices may not support this
         }

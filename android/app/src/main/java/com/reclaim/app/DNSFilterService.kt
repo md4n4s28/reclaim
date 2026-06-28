@@ -51,9 +51,9 @@ object DNSFilterService {
                     String::class.java
                 )
                 if (setPrivateDns != null) {
-                    // Use AdGuard Default DNS
-                    setPrivateDns.invoke(dpm, "dns.adguard-dns.com")
-                    Log.d(TAG, "✓ Private DNS set to dns.adguard-dns.com (AdGuard Default)")
+                    // Use CleanBrowsing Family Filter DNS
+                    setPrivateDns.invoke(dpm, "family-filter-dns.cleanbrowsing.org")
+                    Log.d(TAG, "✓ Private DNS set to family-filter-dns.cleanbrowsing.org")
                     return
                 }
             } catch (e: Exception) {
@@ -84,9 +84,9 @@ object DNSFilterService {
             // Note: This requires Device Owner status on Android 11+
             Log.d(TAG, "Applying DHCP DNS override through WifiManager")
 
-            // AdGuard Default DNS
-            val dns1 = "94.140.14.14"
-            val dns2 = "94.140.15.15"
+            // CleanBrowsing Family Filter DNS
+            val dns1 = "185.228.168.168"
+            val dns2 = "185.228.169.168"
 
             // This would require reflection or Device Owner capabilities
             // For now, we log that this would be attempted

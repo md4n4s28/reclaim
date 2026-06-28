@@ -173,6 +173,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
               defaultBuilder: (context, day, focusedDay) {
                 if (day.isAfter(DateTime.now())) return null; // Future days default
                 
+                // Do not mark days before installDate as clean
+                final installDate = provider.installDate;
+                if (installDate != null) {
+                  final installDay = DateTime(installDate.year, installDate.month, installDate.day);
+                  final targetDay = DateTime(day.year, day.month, day.day);
+                  if (targetDay.isBefore(installDay)) return null;
+                }
+
                 final isRelapse = relapses.any((r) => isSameDay(r, day));
                 
                 return Container(

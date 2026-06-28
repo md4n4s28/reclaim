@@ -86,6 +86,19 @@ class ProtectionService {
     }
   }
 
+  /// Sends the blocked package list to the native side for the accessibility service.
+  static Future<bool> syncBlockedPackages(List<String> packages) async {
+    try {
+      final result = await _protectionChannel.invokeMethod<bool>(
+        'syncBlockedPackages',
+        {'packages': packages},
+      );
+      return result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Sends the custom DNS list to the native side for the VPN service.
   static Future<bool> syncDnsList(List<String> dns) async {
     try {
@@ -115,6 +128,23 @@ class ProtectionService {
       await _protectionChannel.invokeMethod('openAccessibilitySettings');
     } catch (e) {
       // Handle error silently
+    }
+  }
+
+  /// Fetch list of all user launchable applications installed on the phone.
+  static Future<List<Map<String, String>>> getInstalledApps() async {
+    try {
+      final List<dynamic>? result = await _protectionChannel.invokeMethod<List<dynamic>>('getInstalledApps');
+      if (result == null) return [];
+      return result.map((item) {
+        final map = Map<String, dynamic>.from(item as Map);
+        return {
+          "packageName": map["packageName"]?.toString() ?? "",
+          "appName": map["appName"]?.toString() ?? ""
+        };
+      }).toList();
+    } catch (e) {
+      return [];
     }
   }
 

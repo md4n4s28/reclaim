@@ -97,6 +97,20 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "syncBlockedPackages" -> {
+                    try {
+                        @Suppress("UNCHECKED_CAST")
+                        val packages = call.argument<List<String>>("packages") ?: emptyList()
+                        val prefs = getSharedPreferences("reclaim_blocklist", MODE_PRIVATE)
+                        val packageSet = packages.map { it.lowercase().trim() }.toSet()
+                        prefs.edit().putStringSet("blocked_packages", packageSet).apply()
+                        Log.d(TAG, "Synced ${packageSet.size} blocked packages to native SharedPreferences")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error syncing blocked packages", e)
+                        result.success(false)
+                    }
+                }
                 "syncDnsList" -> {
                     try {
                         @Suppress("UNCHECKED_CAST")
@@ -123,6 +137,36 @@ class MainActivity : FlutterActivity() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error opening accessibility settings", e)
                         result.success(false)
+                    }
+                }
+                "getInstalledApps" -> {
+                    try {
+                        val pm = packageManager
+                        // Query launcher intents to find user launchable apps
+                        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                            addCategory(Intent.CATEGORY_LAUNCHER)
+                        }
+                        val resolvedInfos = pm.queryIntentActivities(mainIntent, 0)
+                        val appsList = mutableListOf<Map<String, String>>()
+                        val addedPackages = mutableSetOf<String>()
+
+                        for (info in resolvedInfos) {
+                            val pkgName = info.activityInfo.packageName
+                            if (pkgName == packageName) continue // Skip Reclaim
+                            if (addedPackages.add(pkgName)) {
+                                val appLabel = info.loadLabel(pm).toString()
+                                appsList.add(mapOf(
+                                    "packageName" to pkgName,
+                                    "appName" to appLabel
+                                ))
+                            }
+                        }
+                        // Sort by appName case insensitively
+                        appsList.sortBy { it["appName"]?.lowercase() }
+                        result.success(appsList)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error fetching installed apps", e)
+                        result.success(emptyList<Map<String, String>>())
                     }
                 }
                 "openPrivateDnsSettings" -> {

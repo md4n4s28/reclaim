@@ -38,10 +38,8 @@ class ReclaimVpnService : VpnService() {
 
         // Default DNS
         private val DEFAULT_DNS = listOf(
-            "1.1.1.1",          // Cloudflare
-            "1.0.0.1",
-            "94.140.14.14",     // AdGuard Default
-            "94.140.15.15"
+            "185.228.168.168",  // CleanBrowsing Family Filter DNS
+            "185.228.169.168"
         )
 
         @Volatile

@@ -14,6 +14,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/settings/advanced_protection_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/breathing/breathing_screen.dart';
+import 'features/block/app_blocker_screen.dart';
 import 'core/notification_service.dart';
 
 void main() async {
@@ -30,7 +31,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppProvider()),
+        ChangeNotifierProvider(create: (_) => AppProvider()..load()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const ReclaimApp(),
@@ -63,6 +64,7 @@ class ReclaimApp extends StatelessWidget {
             '/advanced_protection': (_) => const AdvancedProtectionScreen(),
             '/journal': (_) => const JournalScreen(),
             '/breathing': (_) => const BreathingScreen(),
+            '/app_blocker': (_) => const AppBlockerScreen(),
           },
         );
       },

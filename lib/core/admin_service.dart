@@ -14,4 +14,10 @@ class AdminService {
 
   /// Lock app from uninstallation
   static Future<void> lockApp() => ProtectionService.lockApp();
+
+  /// Start local VPN proxy
+  static Future<bool> startVpn() => ProtectionService.startVpn();
+
+  /// Stop local VPN proxy
+  static Future<bool> stopVpn() => ProtectionService.stopVpn();
 }

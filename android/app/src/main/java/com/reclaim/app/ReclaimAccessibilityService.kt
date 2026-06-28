@@ -67,12 +67,22 @@ class ReclaimAccessibilityService : AccessibilityService() {
         "com.opera.mini.native" to listOf(
             "com.opera.mini.native:id/url_field"
         ),
+        // Add Snaptube support (Snaptube package is often com.snaptube.premium or com.lotus.videodownloader)
+        "com.snaptube.premium" to listOf(
+            "com.snaptube.premium:id/url_bar",
+            "com.snaptube.premium:id/input_url"
+        ),
+        "com.lotus.videodownloader" to listOf(
+            "com.lotus.videodownloader:id/url_bar",
+            "com.lotus.videodownloader:id/input_url"
+        )
     )
 
     private val supportedBrowserPackages = browserAddressBarIds.keys
 
     // Blocklist (loaded from SharedPrefs + defaults)
     private var blockedDomains = setOf<String>()
+    private var blockedPackages = setOf<String>()
     private var lastCacheRefresh = 0L
 
     // Adult keywords for search/URL blocking - COMPREHENSIVE LIST
@@ -110,9 +120,8 @@ class ReclaimAccessibilityService : AccessibilityService() {
         "doujinshi", "rule34", "r34", "hentai manga",
 
         // Other adult services
-        "massage", "happy ending", "massage parlor",
-        "dating", "hookup", "adult dating", "affair",
-        "sugar daddy", "sugar baby", "escort service",
+        "massage", "happy ending", "happyending", "massage parlor",
+        "escort service",
 
         // Asian adult content (common searches)
         "jav", "japanese porn", "korean porn",
@@ -120,13 +129,12 @@ class ReclaimAccessibilityService : AccessibilityService() {
 
         // Incest content
         "incest", "family sex", "mom son", "sister brother",
-        "taboo", "forbidden", "family fun",
+        "taboo", "forbidden",
 
         // Other variations
-        "boobs", "tits", "ass", "butt", "naked girl",
+        "boobs", "tits", "naked girl",
         "naked man", "nude photo", "nude video", "nude pic",
-        "topless", "bikini", "lingerie model",
-        "playboy", "penthouse", "hustler",
+        "topless", "playboy", "penthouse", "hustler"
     )
 
 
@@ -153,6 +161,17 @@ class ReclaimAccessibilityService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
 
+        // Always check and refresh blocklist/package lists from SharedPreferences
+        refreshBlocklistIfNeeded()
+
+        // Check package level app blocker first
+        if (blockedPackages.contains(pkg)) {
+            Log.e(TAG, "🛑 APP BLOCKED: $pkg")
+            showBlockingOverlay()
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            return
+        }
+
         // 1. MONITOR SYSTEM SETTINGS (Cheat Prevention)
         if (pkg in systemSettingsPackages || pkg.contains("settings") || pkg.contains("packageinstaller")) {
             monitorSettingsForCheating(event)
@@ -160,9 +179,6 @@ class ReclaimAccessibilityService : AccessibilityService() {
         }
 
         if (pkg !in supportedBrowserPackages) return
-
-        // Refresh blocklist cache if needed
-        refreshBlocklistIfNeeded()
 
         // 2. Check URL bar for blocked domains or keywords in search URL
         val url = extractUrl(event, pkg) ?: ""
@@ -213,29 +229,23 @@ class ReclaimAccessibilityService : AccessibilityService() {
         try {
             val text = node.text?.toString()?.lowercase() ?: ""
             val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
-            
             val combinedText = "$text $contentDesc"
             
-            // Block access to DNS, Accessibility Service settings, and uninstall pages
-            // Covers Motorola, Samsung, Xiaomi, and stock Android variations
+            // Only block when explicitly targeting uninstalling or deactivating Reclaim
             val cheatKeywords = listOf(
-                "accessibility service",
-                "device admin",
-                "device administrators",
-                "device admin apps",
-                "admin apps",
                 "uninstall reclaim",
                 "reclaim app info",
-                "deactivate this device admin"
+                "deactivate reclaim",
+                "reclaim protection"
             )
             
             if (cheatKeywords.any { combinedText.contains(it) }) {
                 return true
             }
 
-            // Aggressively block searching for these terms in the Settings app
+            // Refine search bar checks in Settings. Only block if they search specifically for uninstalling reclaim or admin removal terms.
             if (node.className == "android.widget.EditText" || node.className == "android.widget.AutoCompleteTextView") {
-                if (combinedText.contains("admin") || combinedText.contains("uninstall")) {
+                if (combinedText == "uninstall reclaim" || combinedText == "deactivate reclaim" || combinedText == "remove reclaim") {
                     return true
                 }
             }
@@ -309,6 +319,13 @@ class ReclaimAccessibilityService : AccessibilityService() {
 
     private fun refreshBlocklistIfNeeded() {
         val now = System.currentTimeMillis()
+        // Always reload packages from prefs to get immediate sync when updated in UI,
+        // and reload domains according to cache refresh interval.
+        try {
+            val prefs = getSharedPreferences("reclaim_blocklist", MODE_PRIVATE)
+            blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+        } catch (_: Exception) {}
+
         if (now - lastCacheRefresh > CACHE_REFRESH_MS || blockedDomains.isEmpty()) {
             loadBlocklist()
             lastCacheRefresh = now
@@ -320,10 +337,12 @@ class ReclaimAccessibilityService : AccessibilityService() {
             val prefs = getSharedPreferences("reclaim_blocklist", MODE_PRIVATE)
             val domains = prefs.getStringSet("blocked_domains", emptySet()) ?: emptySet()
             blockedDomains = domains + DEFAULT_DOMAINS
-            Log.d(TAG, "Loaded ${blockedDomains.size} blocked domains")
+            blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+            Log.d(TAG, "Loaded ${blockedDomains.size} blocked domains and ${blockedPackages.size} blocked packages")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading blocklist", e)
             blockedDomains = DEFAULT_DOMAINS
+            blockedPackages = emptySet()
         }
     }
 
@@ -380,8 +399,8 @@ class ReclaimAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Check if a URL should be blocked.
-     * AGGRESSIVE BLOCKING - Matches against domain blocklist AND adult keywords.
+     * Check if a URL or text should be blocked.
+     * Refined to prevent false positives like 'nanni pari college'.
      */
     private fun isBlocked(url: String): Boolean {
         val lower = url.lowercase().trim()
@@ -400,7 +419,9 @@ class ReclaimAccessibilityService : AccessibilityService() {
             if (match != null) {
                 try {
                     val searchTerm = java.net.URLDecoder.decode(match.groupValues.getOrNull(1) ?: "", "UTF-8")
-                    if (adultKeywords.any { searchTerm.contains(it) }) {
+                    // Exact/boundary keyword matching to avoid matching substrings like "sex" in "unisex" or "college" in adult college queries
+                    val searchWords = searchTerm.lowercase().split(Regex("\\s+"))
+                    if (searchWords.any { word -> adultKeywords.contains(word) }) {
                         Log.e(TAG, "🚨 ADULT SEARCH DETECTED: $searchTerm")
                         return true
                     }
@@ -418,7 +439,6 @@ class ReclaimAccessibilityService : AccessibilityService() {
             .split(":")[0]
 
         // 3. Wildcard matching for xhamster and other major porn brands
-        // We check if the domain CONTAINS the brand name to catch variants like xhamster19.com
         val brandWildcards = listOf("xhamster", "pornhub", "xnxx", "xvideos", "redtube", "youporn", "spankbang")
         if (brandWildcards.any { domain.contains(it) }) {
             Log.e(TAG, "🚨 BRAND WILDCARD BLOCKED: $domain")
@@ -433,10 +453,12 @@ class ReclaimAccessibilityService : AccessibilityService() {
             return true
         }
 
-        // 5. Keyword match in entire URL (strict but broad)
-        // We only block if it's a clear porn keyword
+        // 5. Keyword match in entire URL (check for standalone words to prevent blocking news/educational resources)
         val criticalKeywords = listOf("porn", "hentai", "sexvideo", "adultvideo", "sexcam")
-        return criticalKeywords.any { lower.contains(it) }
+        return criticalKeywords.any { kw -> 
+            val regex = Regex("\\b${kw}\\b")
+            regex.containsMatchIn(lower)
+        }
     }
 
     /**
@@ -553,7 +575,7 @@ class ReclaimAccessibilityService : AccessibilityService() {
 
         // Message
         val messageView = TextView(this).apply {
-            text = "You are stronger than this urge.\nChoose consciously."
+            text = "Blocked by Reclaim. Focus on what matters."
             setTextColor(Color.parseColor("#CCCCCC"))
             textSize = 18f
             gravity = Gravity.CENTER
