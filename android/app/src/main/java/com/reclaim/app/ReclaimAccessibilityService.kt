@@ -196,9 +196,11 @@ class ReclaimAccessibilityService : AccessibilityService() {
 
             Log.d(TAG, "settings check - isAdminActive: $isAdminActive, isActivationRequest: $isActivationRequest")
 
-            // If admin is active, protect Settings screens from cheating.
+            // If admin is active, protect Settings screens from cheating without exceptions.
             // If admin is NOT active, only block if it's NOT the activation request screen.
-            if (isAdminActive || !isActivationRequest) {
+            if (isAdminActive) {
+                monitorSettingsForCheating(event)
+            } else if (!isActivationRequest) {
                 monitorSettingsForCheating(event)
             }
             return
@@ -273,15 +275,35 @@ class ReclaimAccessibilityService : AccessibilityService() {
                 "reclaim service"
             )
             
-            // Check if we are on the deactivation screen (which must be blocked)
-            val isDeactivationScreen = combinedText.contains("deactivate") || 
-                                       combinedText.contains("remove") || 
-                                       combinedText.contains("turn off") ||
-                                       combinedText.contains("stop") ||
-                                       combinedText.contains("deny") ||
-                                       combinedText.contains("off")
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val adminComponent = ComponentName(applicationContext, ReclaimDeviceAdminReceiver::class.java)
+            val isAdminActive = dpm.isAdminActive(adminComponent)
+
+            // When Device Admin is active, block settings screens mentioning Reclaim protection or accessibility services directly.
+            if (isAdminActive) {
+                val strictMatchTerms = listOf(
+                    "reclaim protection",
+                    "reclaim accessibility",
+                    "reclaim service",
+                    "deactivate this device admin app",
+                    "deactivate device admin",
+                    "deactivate reclaim"
+                )
+                if (strictMatchTerms.any { combinedText.contains(it) }) {
+                    return true
+                }
+            }
+
+            val isDeactivationScreen = !isAdminActive && (
+                combinedText.contains("deactivate") || 
+                combinedText.contains("remove") || 
+                combinedText.contains("turn off") ||
+                combinedText.contains("stop") ||
+                combinedText.contains("deny") ||
+                combinedText.contains("off")
+            )
             
-            if (isDeactivationScreen && cheatKeywords.any { combinedText.contains(it) }) {
+            if (!isAdminActive && isDeactivationScreen && cheatKeywords.any { combinedText.contains(it) }) {
                 return true
             }
 
