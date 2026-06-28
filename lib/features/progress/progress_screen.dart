@@ -21,21 +21,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
   List<Map<String, String>> _dailyVideos = [];
 
   final List<Map<String, String>> _allVideos = [
-    {'title': 'How to Quit Porn Forever', 'author': 'Dr. Trish', 'url': 'https://www.youtube.com/watch?v=1'},
-    {'title': 'The Huberman Lab on Dopamine', 'author': 'Andrew Huberman', 'url': 'https://www.youtube.com/watch?v=2'},
-    {'title': 'Why You Lack Discipline', 'author': 'Hamza', 'url': 'https://www.youtube.com/watch?v=3'},
-    {'title': 'The Great Porn Experiment', 'author': 'Gary Wilson', 'url': 'https://www.youtube.com/watch?v=4'},
-    {'title': 'Dopamine Detox Guide', 'author': 'Better Than Yesterday', 'url': 'https://www.youtube.com/watch?v=5'},
-    {'title': 'Overcoming Sexual Addiction', 'author': 'Terry Crews', 'url': 'https://www.youtube.com/watch?v=6'},
-    {'title': 'Stop Watching Porn', 'author': 'Improvement Pill', 'url': 'https://www.youtube.com/watch?v=7'},
+    {'title': 'Dopamine Detox Guide', 'author': 'Evolve Daily', 'url': 'https://youtu.be/LWTp-vrTfx8'},
+    {'title': 'Battle Against Immorality', 'author': 'New Generation Army', 'url': 'https://www.youtube.com/watch?v=lvgqcGrB5TY'},
+    {'title': 'Get Free from Addiction', 'author': 'David Diga Hernandez', 'url': 'https://www.youtube.com/watch?v=lDF2t5D7Cmg'},
+    {'title': 'What Lust Does To Your Brain', 'author': 'Psych2Go', 'url': 'https://youtu.be/tDBBDpZVX6Y'},
   ];
 
   @override
   void initState() {
     super.initState();
-    // Shuffle and pick 4 random videos
-    _allVideos.shuffle();
-    _dailyVideos = _allVideos.take(4).toList();
+    _dailyVideos = List.from(_allVideos);
     
     // Refresh usage stats
     WidgetsBinding.instance.addPostFrameCallback((_) {

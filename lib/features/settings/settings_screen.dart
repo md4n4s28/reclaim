@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
+import 'package:flutter/services.dart';
 import '../../core/app_provider.dart';
 import '../../core/theme_provider.dart';
 import '../../core/bottom_nav.dart';
@@ -46,23 +47,93 @@ class _AdvancedProtectionLink extends StatelessWidget {
           child: Column(
             children: [
               Consumer<AppProvider>(
-                builder: (context, provider, _) => _ToggleRow(
-                  icon: Icons.vpn_lock_rounded,
-                  iconColor: AppColors.accent,
-                  title: 'CleanBrowsing VPN DNS',
-                  subtitle: provider.isVpnRunning
-                      ? 'Family filter DNS is active'
-                      : 'VPN disabled. Tap to activate.',
-                  value: provider.isVpnRunning,
-                  onChanged: (v) async {
-                    if (v) {
-                      await provider.startVpn();
-                    } else {
-                      // Call Stop VPN directly
-                      await AdminService.stopVpn();
-                      await provider.refreshProtectionStatus();
-                    }
-                  },
+                builder: (context, provider, _) => Column(
+                  children: [
+                    _SettingRow(
+                      icon: Icons.dns_rounded,
+                      iconColor: AppColors.accent,
+                      title: 'Configure Private DNS',
+                      subtitle: 'Copy DNS & open settings to block adult sites at network level',
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (dialogCtx) => AlertDialog(
+                            backgroundColor: AppColors.card,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Setup Family DNS', style: TextStyle(color: AppColors.textPrimary)),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Set your Private DNS provider hostname to CleanBrowsing Family Filter to automatically restrict adult sites without VPN data issues.',
+                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                    'Steps to configure:\n'
+                                    '1. Click Copy to save the hostname to your clipboard.\n'
+                                    '2. Click Open DNS Settings below (or go to Settings -> Network & Internet -> Private DNS).\n'
+                                    '3. Select Private DNS provider hostname.\n'
+                                    '4. Paste the copied hostname and click Save.',
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+                                ),
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Expanded(
+                                        child: SelectableText(
+                                          'family-filter-dns.cleanbrowsing.org',
+                                          style: TextStyle(color: AppColors.textPrimary, fontFamily: 'monospace', fontSize: 12),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.copy_rounded, color: AppColors.accent, size: 20),
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: 'family-filter-dns.cleanbrowsing.org'));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Copied: family-filter-dns.cleanbrowsing.org'),
+                                              backgroundColor: AppColors.accent,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogCtx),
+                                child: const Text('Close', style: TextStyle(color: AppColors.textSecondary)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(dialogCtx);
+                                  provider.openPrivateDnsSettings();
+                                },
+                                child: const Text('Open DNS Settings'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
               const Divider(color: AppColors.border, height: 1),

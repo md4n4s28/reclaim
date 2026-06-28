@@ -20,6 +20,9 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.content.Context
+import android.content.ComponentName
+import android.app.admin.DevicePolicyManager
 
 /**
  * ReclaimAccessibilityService — monitors browser URL bars for blocked content.
@@ -173,8 +176,31 @@ class ReclaimAccessibilityService : AccessibilityService() {
         }
 
         // 1. MONITOR SYSTEM SETTINGS (Cheat Prevention)
-        if (pkg in systemSettingsPackages || pkg.contains("settings") || pkg.contains("packageinstaller")) {
-            monitorSettingsForCheating(event)
+        if (pkg.contains("settings") || pkg.contains("packageinstaller") || pkg in systemSettingsPackages) {
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val adminComponent = ComponentName(applicationContext, ReclaimDeviceAdminReceiver::class.java)
+            val isAdminActive = dpm.isAdminActive(adminComponent)
+            
+            // Check if the current settings view is the activation prompt
+            val rootNode = rootInActiveWindow ?: event.source
+            var isActivationRequest = false
+            if (rootNode != null) {
+                val nodeText = rootNode.text?.toString()?.lowercase() ?: ""
+                val nodeDesc = rootNode.contentDescription?.toString()?.lowercase() ?: ""
+                val textCombined = "$nodeText $nodeDesc"
+                isActivationRequest = textCombined.contains("activate this device admin") || 
+                                      textCombined.contains("activate this device app") ||
+                                      textCombined.contains("enable") || 
+                                      textCombined.contains("activate")
+            }
+
+            Log.d(TAG, "settings check - isAdminActive: $isAdminActive, isActivationRequest: $isActivationRequest")
+
+            // If admin is active, protect Settings screens from cheating.
+            // If admin is NOT active, only block if it's NOT the activation request screen.
+            if (isAdminActive || !isActivationRequest) {
+                monitorSettingsForCheating(event)
+            }
             return
         }
 
@@ -231,21 +257,38 @@ class ReclaimAccessibilityService : AccessibilityService() {
             val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
             val combinedText = "$text $contentDesc"
             
-            // Only block when explicitly targeting uninstalling or deactivating Reclaim
+            // Only block when explicitly targeting deactivation or uninstalling
             val cheatKeywords = listOf(
                 "uninstall reclaim",
                 "reclaim app info",
                 "deactivate reclaim",
-                "reclaim protection"
+                "deactivate device admin",
+                "deactivate this device admin",
+                "remove device admin",
+                "deactivate this device admin app",
+                "turn off device admin",
+                "reclaim accessibility",
+                "reclaim protection service",
+                "use reclaim",
+                "reclaim service"
             )
             
-            if (cheatKeywords.any { combinedText.contains(it) }) {
+            // Check if we are on the deactivation screen (which must be blocked)
+            val isDeactivationScreen = combinedText.contains("deactivate") || 
+                                       combinedText.contains("remove") || 
+                                       combinedText.contains("turn off") ||
+                                       combinedText.contains("stop") ||
+                                       combinedText.contains("deny") ||
+                                       combinedText.contains("off")
+            
+            if (isDeactivationScreen && cheatKeywords.any { combinedText.contains(it) }) {
                 return true
             }
 
-            // Refine search bar checks in Settings. Only block if they search specifically for uninstalling reclaim or admin removal terms.
+            // Refine search bar checks in Settings.
             if (node.className == "android.widget.EditText" || node.className == "android.widget.AutoCompleteTextView") {
-                if (combinedText == "uninstall reclaim" || combinedText == "deactivate reclaim" || combinedText == "remove reclaim") {
+                val blockTerms = listOf("uninstall reclaim", "deactivate reclaim", "remove reclaim", "reclaim admin", "deactivate device admin")
+                if (blockTerms.any { combinedText.contains(it) }) {
                     return true
                 }
             }

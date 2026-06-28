@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme.dart';
 import '../../core/app_provider.dart';
 import '../../core/widgets.dart';
@@ -12,9 +13,28 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen> with WidgetsBindingObserver {
   final _controller = PageController();
   int _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AppProvider>().refreshProtectionStatus();
+    }
+  }
 
   static const _pages = [
     _OnboardPage(
@@ -30,28 +50,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       subtitle: 'We don\'t lock you out. We slow you down — giving your rational mind time to catch up.',
     ),
     _OnboardPage(
-      icon: Icons.vpn_lock_rounded,
+      icon: Icons.dns_rounded,
       color: AppColors.primary,
-      title: 'Enable Family Filter DNS',
-      subtitle: 'Reclaim runs a local VPN proxy using CleanBrowsing family-filter DNS to restrict adult sites at network level.',
+      title: 'Website Filter',
+      subtitle: 'Block adult content at the network level by setting your Private DNS to CleanBrowsing.',
       isSetup: true,
-      setupType: 'vpn',
+      setupType: 'dns',
     ),
     _OnboardPage(
-      icon: Icons.accessibility_new_rounded,
-      color: AppColors.streakOrange,
-      title: 'Enable Protection Service',
-      subtitle: 'To block adult searches and sites, Reclaim needs Accessibility Service enabled. Click below during setup.',
+      icon: Icons.bar_chart_rounded,
+      color: AppColors.accent,
+      title: 'App Usage Monitor',
+      subtitle: 'Reclaim needs Usage Statistics access to calculate screen time analytics and block restricted apps.',
       isSetup: true,
-      setupType: 'accessibility',
+      setupType: 'usage',
     ),
     _OnboardPage(
       icon: Icons.admin_panel_settings_rounded,
       color: AppColors.danger,
-      title: 'Secure Device Admin',
+      title: 'Prevent Uninstallation',
       subtitle: 'To prevent accidental uninstallation during strong urges, enable Device Administrator privileges.',
       isSetup: true,
       setupType: 'admin',
+    ),
+    _OnboardPage(
+      icon: Icons.accessibility_new_rounded,
+      color: AppColors.streakOrange,
+      title: 'Urges Protection',
+      subtitle: 'To block adult searches and sites, Reclaim needs Accessibility Service enabled. Click below during setup.',
+      isSetup: true,
+      setupType: 'accessibility',
     ),
   ];
 
@@ -177,17 +205,72 @@ class _PageContent extends StatelessWidget {
           ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
           if (isSetupPage) ...[
             const SizedBox(height: 32),
-            if (page.setupType == 'vpn')
+            if (page.setupType == 'dns') ...[
+              const Text(
+                'How to set up:\n'
+                '1. Click Copy to save the hostname.\n'
+                '2. Click Open DNS Settings below.\n'
+                '3. Choose Private DNS provider hostname.\n'
+                '4. Paste the copied text and save.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: SelectableText(
+                        'family-filter-dns.cleanbrowsing.org',
+                        style: TextStyle(color: AppColors.textPrimary, fontFamily: 'monospace', fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy_rounded, color: AppColors.accent, size: 20),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: 'family-filter-dns.cleanbrowsing.org'));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Copied: family-filter-dns.cleanbrowsing.org'),
+                            backgroundColor: AppColors.accent,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               ElevatedButton.icon(
-                icon: const Icon(Icons.vpn_lock_rounded),
-                label: Text(provider.isVpnRunning ? 'VPN Active ✓' : 'Enable VPN Protection'),
+                icon: const Icon(Icons.settings_rounded),
+                label: const Text('Open DNS Settings'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: provider.isVpnRunning ? AppColors.accent : page.color,
+                  backgroundColor: page.color,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: () => provider.startVpn(),
+                onPressed: () => provider.openPrivateDnsSettings(),
+              ),
+            ],
+            if (page.setupType == 'usage')
+              ElevatedButton.icon(
+                icon: const Icon(Icons.bar_chart_rounded),
+                label: Text(provider.hasUsagePermission ? 'Granted ✓' : 'Grant Usage Permission'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: provider.hasUsagePermission ? AppColors.accent : page.color,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => provider.requestUsagePermission(),
               ),
             if (page.setupType == 'accessibility')
               ElevatedButton.icon(

@@ -16,10 +16,9 @@ class AppProvider extends ChangeNotifier {
   DateTime? _installDate;
 
   // ── New protection-status fields ──
-  bool _isVpnRunning = false;
   bool _isAccessibilityEnabled = false;
   bool _isAdminActive = false;
-  
+
   // ── Advanced Stats ──
   int _longestStreak = 0;
   List<DateTime> _relapses = [];
@@ -51,7 +50,6 @@ class AppProvider extends ChangeNotifier {
   bool get hasUsagePermission => _hasUsagePermission;
 
   // ── New getters ──
-  bool get isVpnRunning => _isVpnRunning;
   bool get isAccessibilityEnabled => _isAccessibilityEnabled;
   bool get isAdminActive => _isAdminActive;
 
@@ -294,16 +292,6 @@ class AppProvider extends ChangeNotifier {
 
   // ──────────────────── New VPN / Protection methods ────────────────────
 
-  /// Starts the VPN and refreshes the running state.
-  Future<void> startVpn() async {
-    debugPrint("AppProvider: Starting VPN for CleanBrowsing DNS protection");
-    await ProtectionService.syncDnsList(_dnsList);
-    await ProtectionService.startVpn();
-    _isVpnRunning = await ProtectionService.isVpnRunning();
-    notifyListeners();
-  }
-
-  /// Opens device accessibility settings for the user to enable the service.
   Future<void> openAccessibilitySettings() async {
     await ProtectionService.openAccessibilitySettings();
   }
@@ -313,9 +301,8 @@ class AppProvider extends ChangeNotifier {
     await ProtectionService.openPrivateDnsSettings();
   }
 
-  /// Refreshes VPN + accessibility status (call after returning from settings).
+  /// Refreshes accessibility status (call after returning from settings).
   Future<void> refreshProtectionStatus() async {
-    _isVpnRunning = await ProtectionService.isVpnRunning();
     _isAccessibilityEnabled = await ProtectionService.isAccessibilityEnabled();
     _isAdminActive = await AdminService.isAdminActive();
     await refreshUsageStats();

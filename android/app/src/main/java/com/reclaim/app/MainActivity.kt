@@ -7,7 +7,6 @@ import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -23,15 +22,12 @@ import java.util.Calendar
 
 class MainActivity : FlutterActivity() {
 
-    private val VPN_CHANNEL = "com.reclaim.app/vpn"
     private val ADMIN_CHANNEL = "com.reclaim.app/admin"
     private val PROTECTION_CHANNEL = "com.reclaim.app/protection"
     private val USAGE_CHANNEL = "com.reclaim.app/usage"
-    private val VPN_REQUEST_CODE = 100
     private val ADMIN_REQUEST_CODE = 101
 
     private var adminResult: MethodChannel.Result? = null
-    private var vpnResult: MethodChannel.Result? = null
 
     companion object {
         const val TAG = "ReclaimMain"
@@ -48,22 +44,6 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        // VPN Channel
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VPN_CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "startVpn" -> requestVpnPermission(result)
-                "stopVpn" -> {
-                    val intent = Intent(this, ReclaimVpnService::class.java).apply {
-                        action = ReclaimVpnService.ACTION_STOP
-                    }
-                    startService(intent)
-                    result.success(true)
-                }
-                "isVpnRunning" -> result.success(ReclaimVpnService.isRunning)
-                else -> result.notImplemented()
-            }
-        }
 
         // Admin Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ADMIN_CHANNEL).setMethodCallHandler { call, result ->
@@ -294,56 +274,15 @@ class MainActivity : FlutterActivity() {
         return false
     }
 
-    private fun requestVpnPermission(result: MethodChannel.Result) {
-        val intent = VpnService.prepare(this)
-        if (intent == null) {
-            // Permission already granted — start VPN
-            startVpnService()
-            result.success(true)
-        } else {
-            vpnResult = result
-            startActivityForResult(intent, VPN_REQUEST_CODE)
-        }
-    }
-
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
-            VPN_REQUEST_CODE -> {
-                if (resultCode == Activity.RESULT_OK) {
-                    startVpnService()
-                    vpnResult?.success(true)
-                } else {
-                    vpnResult?.success(false)
-                }
-                vpnResult = null
-            }
             ADMIN_REQUEST_CODE -> {
                 val isActive = resultCode == Activity.RESULT_OK
                 adminResult?.success(isActive)
                 adminResult = null
-
-                // If admin was just activated, also try to start VPN
-                if (isActive && !ReclaimVpnService.isRunning) {
-                    val vpnIntent = VpnService.prepare(this)
-                    if (vpnIntent == null) {
-                        startVpnService()
-                    }
-                }
             }
         }
         super.onActivityResult(requestCode, resultCode, data)
-    }
-
-    private fun startVpnService() {
-        Log.d(TAG, "Starting VPN service...")
-        val intent = Intent(this, ReclaimVpnService::class.java).apply {
-            action = ReclaimVpnService.ACTION_START
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
     }
 
     private fun isAdminActive(): Boolean {
