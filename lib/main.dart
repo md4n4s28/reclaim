@@ -31,7 +31,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppProvider()..load()),
+        ChangeNotifierProvider(create: (_) => AppProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const ReclaimApp(),
@@ -49,9 +49,9 @@ class ReclaimApp extends StatelessWidget {
         return MaterialApp(
           title: 'Reclaim',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
+          theme: AppTheme.dark,
           darkTheme: AppTheme.dark,
-          themeMode: themeProvider.themeMode,
+          themeMode: ThemeMode.dark,
           initialRoute: '/',
           routes: {
             '/': (_) => const SplashScreen(),

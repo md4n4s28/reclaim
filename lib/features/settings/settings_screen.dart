@@ -20,8 +20,6 @@ class SettingsScreen extends StatelessWidget {
         builder: (context, provider, themeProvider, _) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _ThemeSection(themeProvider: themeProvider),
-            const SizedBox(height: 20),
             _AdvancedProtectionLink(),
             const SizedBox(height: 20),
             _NotificationsSection(),
@@ -32,37 +30,6 @@ class SettingsScreen extends StatelessWidget {
       ),
       bottomNavigationBar: const BottomNav(currentIndex: 3),
     );
-  }
-}
-
-class _ThemeSection extends StatelessWidget {
-  final ThemeProvider themeProvider;
-  const _ThemeSection({required this.themeProvider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionTitle(title: '🎨 Appearance'),
-        const SizedBox(height: 12),
-        GlowCard(
-          glowColor: AppColors.primary,
-          child: _ToggleRow(
-            icon: themeProvider.isDarkMode
-                ? Icons.dark_mode_rounded
-                : Icons.light_mode_rounded,
-            iconColor: AppColors.primary,
-            title: 'Dark Mode',
-            subtitle: themeProvider.isDarkMode
-                ? 'Dark theme is active'
-                : 'Light theme is active',
-            value: themeProvider.isDarkMode,
-            onChanged: (_) => themeProvider.toggleTheme(),
-          ),
-        ),
-      ],
-    ).animate().fadeIn(delay: 50.ms);
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/app_provider.dart';
 import '../../core/theme_provider.dart';
+import 'pin_lock_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,9 +25,25 @@ class _SplashScreenState extends State<SplashScreen> {
     await context.read<ThemeProvider>().load();
     await Future.delayed(const Duration(milliseconds: 2200));
     if (mounted) {
-      final hasCompletedOnboarding = context.read<AppProvider>().hasCompletedOnboarding;
-      final route = hasCompletedOnboarding ? '/dashboard' : '/onboarding';
-      Navigator.pushReplacementNamed(context, route);
+      final provider = context.read<AppProvider>();
+      if (provider.hasCompletedOnboarding) {
+        if (provider.hasPin) {
+          final navigator = Navigator.of(context);
+          navigator.pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => PinLockScreen(
+                onUnlocked: () {
+                  navigator.pushReplacementNamed('/dashboard');
+                },
+              ),
+            ),
+          );
+        } else {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
+      } else {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      }
     }
   }
 

@@ -120,59 +120,120 @@ class _AppLockCard extends StatelessWidget {
 
   void _showPinDialog(BuildContext context, AppProvider provider) {
     final controller = TextEditingController();
+    final confirmController = TextEditingController();
+    bool isConfirming = false;
+    String firstPin = "";
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          provider.hasPin ? 'Change PIN' : 'Set PIN',
-          style: const TextStyle(color: AppColors.textPrimary),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          obscureText: true,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Enter 4-6 digit PIN',
-            hintStyle: const TextStyle(color: AppColors.textMuted),
-            filled: true,
-            fillColor: AppColors.background,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            counterStyle: const TextStyle(color: AppColors.textMuted),
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            isConfirming ? 'Confirm PIN' : (provider.hasPin ? 'Change or Remove PIN' : 'Set PIN'),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (controller.text.length >= 4) {
-                provider.setPin(controller.text);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🔐 PIN set successfully'),
-                    backgroundColor: AppColors.accent,
-                    behavior: SnackBarBehavior.floating,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: isConfirming ? confirmController : controller,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                obscureText: true,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: isConfirming ? 'Confirm your 4-digit PIN' : 'Enter 4-digit PIN',
+                  hintStyle: const TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
                   ),
-                );
-              }
-            },
-            child: const Text('Save', style: TextStyle(color: AppColors.primary)),
+                  counterStyle: const TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+              if (!isConfirming && provider.hasPin) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      await provider.removePin();
+                      Navigator.pop(dialogCtx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🔓 PIN removed successfully'),
+                          backgroundColor: AppColors.accent,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    child: const Text('Remove PIN'),
+                  ),
+                ),
+              ],
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () {
+                if (isConfirming) {
+                  if (confirmController.text == firstPin) {
+                    provider.setPin(firstPin);
+                    Navigator.pop(dialogCtx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('🔐 PIN set successfully'),
+                        backgroundColor: AppColors.accent,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('❌ PINs do not match. Try again.'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    setState(() {
+                      isConfirming = false;
+                      controller.clear();
+                      confirmController.clear();
+                    });
+                  }
+                } else {
+                  if (controller.text.length == 4) {
+                    setState(() {
+                      firstPin = controller.text;
+                      isConfirming = true;
+                    });
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('❌ PIN must be exactly 4 digits'),
+                        backgroundColor: AppColors.danger,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: Text(isConfirming ? 'Confirm' : 'Next', style: const TextStyle(color: AppColors.primary)),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -19,19 +19,8 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d(TAG, "Device boot detected")
-
-            // VPN DISABLED - No longer auto-starting VPN
-            // Protection is now handled by Accessibility Service
-            // which doesn't break internet connectivity
-
-            // Old code (disabled):
-            // val vpnIntent = Intent(context, ReclaimVpnService::class.java).apply {
-            //     action = ReclaimVpnService.ACTION_START
-            // }
-            // context.startForegroundService(vpnIntent)
-
-            Log.d(TAG, "VPN disabled - using Accessibility Service for protection")
+            Log.d(TAG, "Device boot detected - scheduling alarms")
+            MotivationReceiver.scheduleMotivationAlarms(context)
         }
     }
 }

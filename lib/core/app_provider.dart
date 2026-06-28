@@ -275,6 +275,14 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> removePin() async {
+    _pin = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pin');
+    await _save();
+    notifyListeners();
+  }
+
   bool verifyPin(String pin) => _pin == pin;
 
   // Protection is always enabled - no toggle

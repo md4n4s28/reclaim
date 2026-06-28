@@ -121,6 +121,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Motivation Receiver — handles periodic motivational push notifications -->
+        <receiver
+            android:name=".MotivationReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.reclaim.action.TRIGGER_MOTIVATION" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Flutter metadata -->
         <meta-data
             android:name="flutterEmbedding"
