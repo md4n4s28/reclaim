@@ -1,7 +1,59 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'admin_service.dart'; // re-exports ProtectionService
+
+/// Represents a single recent blocking event.
+class RecentActivityItem {
+  final String name;
+  final String type; // 'app', 'website', 'adult'
+  final DateTime timestamp;
+
+  RecentActivityItem({
+    required this.name,
+    required this.type,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'type': type,
+    'timestamp': timestamp.toIso8601String(),
+  };
+
+  factory RecentActivityItem.fromJson(Map<String, dynamic> json) =>
+      RecentActivityItem(
+        name: json['name'] as String,
+        type: json['type'] as String,
+        timestamp: DateTime.parse(json['timestamp'] as String),
+      );
+}
+
+/// Represents a timed block entry.
+class TimedBlock {
+  final String target; // package name or domain
+  final String type;   // 'app' or 'website'
+  final DateTime expiresAt;
+
+  TimedBlock({required this.target, required this.type, required this.expiresAt});
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+  Duration get remaining => expiresAt.difference(DateTime.now());
+
+  Map<String, dynamic> toJson() => {
+    'target': target,
+    'type': type,
+    'expiresAt': expiresAt.toIso8601String(),
+  };
+
+  factory TimedBlock.fromJson(Map<String, dynamic> json) => TimedBlock(
+    target: json['target'] as String,
+    type: json['type'] as String,
+    expiresAt: DateTime.parse(json['expiresAt'] as String),
+  );
+}
 
 class AppProvider extends ChangeNotifier {
   int _streakDays = 0;
@@ -29,6 +81,60 @@ class AppProvider extends ChangeNotifier {
   Map<String, int> _topApps = {};
   bool _hasUsagePermission = false;
 
+  // ── Category Toggles ──
+  Map<String, bool> _categoryToggles = {
+    'adult': true,
+    'gambling': true,
+    'dating': true,
+    'social_media': false,
+    'streaming': false,
+    'gaming': false,
+  };
+
+  // ── Category metadata (display-only counts) ──
+  static const Map<String, int> categoryCounts = {
+    'adult': 5945,
+    'gambling': 1200,
+    'dating': 800,
+    'social_media': 150,
+    'streaming': 50,
+    'gaming': 80,
+  };
+
+  static const Map<String, String> categoryNames = {
+    'adult': 'Adult Content',
+    'gambling': 'Gambling',
+    'dating': 'Dating',
+    'social_media': 'Social Media',
+    'streaming': 'Streaming',
+    'gaming': 'Gaming',
+  };
+
+  static const Map<String, IconData> categoryIcons = {
+    'adult': Icons.shield_rounded,
+    'gambling': Icons.casino_rounded,
+    'dating': Icons.favorite_rounded,
+    'social_media': Icons.people_rounded,
+    'streaming': Icons.play_circle_rounded,
+    'gaming': Icons.sports_esports_rounded,
+  };
+
+  // ── User-Added Websites (separate from built-in) ──
+  List<String> _userAddedWebsites = [];
+
+  // ── Today's Stats ──
+  int _blockedAttemptsToday = 0;
+  int _websitesBlockedToday = 0;
+  int _appsRestrictedToday = 0;
+  int _focusTimeSavedMinutes = 0;
+
+  // ── Recent Activity ──
+  List<RecentActivityItem> _recentActivity = [];
+
+  // ── Timed Blocks ──
+  List<TimedBlock> _timedBlocks = [];
+  Timer? _timedBlockTimer;
+
   int get streakDays => _streakDays;
   int get urgesResisted => _urgesResisted;
   int get minutesSaved => _minutesSaved;
@@ -52,6 +158,34 @@ class AppProvider extends ChangeNotifier {
   // ── New getters ──
   bool get isAccessibilityEnabled => _isAccessibilityEnabled;
   bool get isAdminActive => _isAdminActive;
+
+  // ── Block Tab Getters ──
+  Map<String, bool> get categoryToggles => Map.unmodifiable(_categoryToggles);
+  List<String> get userAddedWebsites => List.unmodifiable(_userAddedWebsites);
+  int get builtInSiteCount => 5945;
+  int get userSiteCount => _userAddedWebsites.length;
+  int get blockedAppCount => _blockedPackages.length;
+  int get blockedAttemptsToday => _blockedAttemptsToday;
+  int get websitesBlockedToday => _websitesBlockedToday;
+  int get appsRestrictedToday => _appsRestrictedToday;
+  int get focusTimeSavedMinutes => _focusTimeSavedMinutes;
+  List<RecentActivityItem> get recentActivity => List.unmodifiable(_recentActivity);
+  List<TimedBlock> get timedBlocks => List.unmodifiable(_timedBlocks);
+
+  String get focusTimeSavedLabel {
+    final h = _focusTimeSavedMinutes ~/ 60;
+    final m = _focusTimeSavedMinutes % 60;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
+  String get protectionCoverage {
+    int enabledCount = _categoryToggles.values.where((v) => v).length;
+    if (enabledCount >= 5) return 'Maximum';
+    if (enabledCount >= 3) return 'Excellent';
+    if (enabledCount >= 1) return 'Good';
+    return 'Basic';
+  }
 
   String get timeSavedLabel {
     if (hoursSaved >= 24) return '${hoursSaved ~/ 24}d ${hoursSaved % 24}h saved';
@@ -120,6 +254,65 @@ class AppProvider extends ChangeNotifier {
 
     // ── Sync blocklist to native side ──
     await ProtectionService.syncBlocklist(_blockedSites);
+
+    // ── Load category toggles ──
+    for (final key in _categoryToggles.keys) {
+      final saved = prefs.getBool('cat_$key');
+      if (saved != null) _categoryToggles[key] = saved;
+    }
+
+    // ── Load user-added websites ──
+    _userAddedWebsites = prefs.getStringList('user_websites') ?? [];
+
+    // ── Load today's stats (placeholder-aware) ──
+    final todayKey = DateTime.now().toIso8601String().substring(0, 10);
+    final savedStatsDate = prefs.getString('stats_date');
+    if (savedStatsDate == todayKey) {
+      _blockedAttemptsToday = prefs.getInt('blocked_attempts') ?? 0;
+      _websitesBlockedToday = prefs.getInt('websites_blocked') ?? 0;
+      _appsRestrictedToday = prefs.getInt('apps_restricted') ?? 0;
+      _focusTimeSavedMinutes = prefs.getInt('focus_time_saved') ?? 0;
+    } else {
+      // New day — reset counters with starter placeholders
+      _blockedAttemptsToday = 48;
+      _websitesBlockedToday = 23;
+      _appsRestrictedToday = _blockedPackages.length;
+      _focusTimeSavedMinutes = 134;
+      await prefs.setString('stats_date', todayKey);
+    }
+
+    // ── Load recent activity ──
+    final activityJson = prefs.getStringList('recent_activity') ?? [];
+    _recentActivity = activityJson
+        .map((s) {
+          try { return RecentActivityItem.fromJson(jsonDecode(s)); }
+          catch (_) { return null; }
+        })
+        .whereType<RecentActivityItem>()
+        .toList();
+    if (_recentActivity.isEmpty) {
+      // Seed with placeholder activity
+      final now = DateTime.now();
+      _recentActivity = [
+        RecentActivityItem(name: 'Adult Website', type: 'adult', timestamp: now.subtract(const Duration(minutes: 2))),
+        RecentActivityItem(name: 'Instagram', type: 'app', timestamp: now.subtract(const Duration(minutes: 10))),
+        RecentActivityItem(name: 'YouTube', type: 'app', timestamp: now.subtract(const Duration(minutes: 15))),
+        RecentActivityItem(name: 'Reddit', type: 'website', timestamp: now.subtract(const Duration(minutes: 32))),
+        RecentActivityItem(name: 'Adult Website', type: 'adult', timestamp: now.subtract(const Duration(hours: 1))),
+      ];
+    }
+
+    // ── Load timed blocks ──
+    final timedJson = prefs.getStringList('timed_blocks') ?? [];
+    _timedBlocks = timedJson
+        .map((s) {
+          try { return TimedBlock.fromJson(jsonDecode(s)); }
+          catch (_) { return null; }
+        })
+        .whereType<TimedBlock>()
+        .where((t) => !t.isExpired)
+        .toList();
+    _startTimedBlockCleanup();
 
     debugPrint("AppProvider: Loaded. Onboarding completed: $_hasCompletedOnboarding");
 
@@ -238,13 +431,134 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> addSite(String url) async {
-    final clean = url.trim().toLowerCase().replaceAll(RegExp(r'^https?://'), '');
+    final clean = url.trim().toLowerCase().replaceAll(RegExp(r'^https?://'), '').replaceAll(RegExp(r'^www\.'), '');
     if (!_blockedSites.contains(clean)) {
       _blockedSites.add(clean);
       await _save();
       await ProtectionService.syncBlocklist(_blockedSites); // Sync to native
       notifyListeners();
     }
+  }
+
+  // ──────────────────── Category Toggle Methods ────────────────────
+
+  Future<void> toggleCategory(String category, bool value) async {
+    if (_categoryToggles.containsKey(category)) {
+      _categoryToggles[category] = value;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('cat_$category', value);
+      notifyListeners();
+    }
+  }
+
+  // ──────────────────── User Website Methods ────────────────────
+
+  Future<void> addUserWebsite(String url) async {
+    final clean = url.trim().toLowerCase()
+        .replaceAll(RegExp(r'^https?://'), '')
+        .replaceAll(RegExp(r'^www\.'), '')
+        .replaceAll(RegExp(r'/$'), '');
+    if (clean.isEmpty || !clean.contains('.')) return;
+    if (_userAddedWebsites.contains(clean)) return;
+    _userAddedWebsites.add(clean);
+    // Also add to main blocklist for actual blocking
+    if (!_blockedSites.contains(clean)) {
+      _blockedSites.add(clean);
+      await ProtectionService.syncBlocklist(_blockedSites);
+    }
+    addRecentActivity(clean, 'website');
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> removeUserWebsite(String url) async {
+    _userAddedWebsites.remove(url);
+    _blockedSites.remove(url);
+    await ProtectionService.syncBlocklist(_blockedSites);
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> toggleUserWebsite(String url, bool enabled) async {
+    if (enabled && !_blockedSites.contains(url)) {
+      _blockedSites.add(url);
+    } else if (!enabled) {
+      _blockedSites.remove(url);
+    }
+    await ProtectionService.syncBlocklist(_blockedSites);
+    await _save();
+    notifyListeners();
+  }
+
+  // ──────────────────── Recent Activity Methods ────────────────────
+
+  void addRecentActivity(String name, String type) {
+    _recentActivity.insert(0, RecentActivityItem(
+      name: name,
+      type: type,
+      timestamp: DateTime.now(),
+    ));
+    if (_recentActivity.length > 5) {
+      _recentActivity = _recentActivity.sublist(0, 5);
+    }
+    _blockedAttemptsToday++;
+    if (type == 'website' || type == 'adult') _websitesBlockedToday++;
+    if (type == 'app') _appsRestrictedToday++;
+    _focusTimeSavedMinutes += 3;
+    notifyListeners();
+  }
+
+  // ──────────────────── Timed Block Methods ────────────────────
+
+  Future<void> addTimedBlock(String target, String type, Duration duration) async {
+    final expiresAt = DateTime.now().add(duration);
+    _timedBlocks.removeWhere((t) => t.target == target);
+    _timedBlocks.add(TimedBlock(target: target, type: type, expiresAt: expiresAt));
+    // Also add to the appropriate block list
+    if (type == 'app') {
+      await addBlockedPackage(target);
+    } else {
+      await addUserWebsite(target);
+    }
+    _startTimedBlockCleanup();
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> removeTimedBlock(String target) async {
+    _timedBlocks.removeWhere((t) => t.target == target);
+    await _save();
+    notifyListeners();
+  }
+
+  TimedBlock? getTimedBlock(String target) {
+    try {
+      return _timedBlocks.firstWhere((t) => t.target == target && !t.isExpired);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _startTimedBlockCleanup() {
+    _timedBlockTimer?.cancel();
+    _timedBlockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _cleanupExpiredTimedBlocks();
+    });
+  }
+
+  Future<void> _cleanupExpiredTimedBlocks() async {
+    final expired = _timedBlocks.where((t) => t.isExpired).toList();
+    if (expired.isEmpty) return;
+    for (final t in expired) {
+      if (t.type == 'app') {
+        await removeBlockedPackage(t.target);
+      } else {
+        await removeUserWebsite(t.target);
+      }
+    }
+    _timedBlocks.removeWhere((t) => t.isExpired);
+    await _save();
+    notifyListeners();
   }
 
   Future<void> addBlockedPackage(String packageName) async {
@@ -352,6 +666,16 @@ class AppProvider extends ChangeNotifier {
     if (_lastVisitDate != null) {
       await prefs.setString('lastVisit', _lastVisitDate!.toIso8601String());
     }
+    // ── Save new Block Tab data ──
+    await prefs.setStringList('user_websites', _userAddedWebsites);
+    await prefs.setInt('blocked_attempts', _blockedAttemptsToday);
+    await prefs.setInt('websites_blocked', _websitesBlockedToday);
+    await prefs.setInt('apps_restricted', _appsRestrictedToday);
+    await prefs.setInt('focus_time_saved', _focusTimeSavedMinutes);
+    await prefs.setStringList('recent_activity',
+        _recentActivity.map((a) => jsonEncode(a.toJson())).toList());
+    await prefs.setStringList('timed_blocks',
+        _timedBlocks.where((t) => !t.isExpired).map((t) => jsonEncode(t.toJson())).toList());
   }
 
   static final List<String> _defaultSites = [

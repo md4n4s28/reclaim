@@ -15,6 +15,7 @@ import 'features/settings/advanced_protection_screen.dart';
 import 'features/journal/journal_screen.dart';
 import 'features/breathing/breathing_screen.dart';
 import 'features/block/app_blocker_screen.dart';
+import 'features/block/custom_blocking_screen.dart';
 import 'core/notification_service.dart';
 
 void main() async {
@@ -65,6 +66,7 @@ class ReclaimApp extends StatelessWidget {
             '/journal': (_) => const JournalScreen(),
             '/breathing': (_) => const BreathingScreen(),
             '/app_blocker': (_) => const AppBlockerScreen(),
+            '/custom_blocking': (_) => const CustomBlockingScreen(),
           },
         );
       },
