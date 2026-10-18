@@ -165,6 +165,13 @@ class ReclaimAccessibilityService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
 
+        // If Reclaim itself is active, immediately remove any leftover overlays to prevent black screens!
+        if (pkg == packageName) {
+            removeAntiCheatOverlay()
+            removeOverlay()
+            return
+        }
+
         // 1. FAST PATH: MONITOR SYSTEM SETTINGS FIRST (0ms latency, before any blocklist checks)
         if (pkg.contains("settings") || pkg.contains("packageinstaller") || pkg in systemSettingsPackages) {
             monitorSettingsForCheating(event)
@@ -293,10 +300,15 @@ class ReclaimAccessibilityService : AccessibilityService() {
                 return false
             }
 
-            // 3. Detect Reclaim's SPECIFIC Accessibility detail sub-page:
-            val isAccessibilitySubPage = windowText.contains("use reclaim") ||
-                                         windowText.contains("stop reclaim") ||
-                                         windowText.contains("turn off reclaim") ||
+            // 3. Detect Reclaim's SPECIFIC Accessibility detail sub-page or Confirmation Popup:
+            val isConfirmationPopup = windowText.contains("stop reclaim") ||
+                                      windowText.contains("turn off reclaim") ||
+                                      windowText.contains("disable reclaim") ||
+                                      windowText.contains("turning off reclaim") ||
+                                      (windowText.contains("reclaim") && windowText.contains("stop") && windowText.contains("cancel"))
+
+            val isAccessibilitySubPage = isConfirmationPopup ||
+                                         windowText.contains("use reclaim") ||
                                          windowText.contains("reclaim shortcut") ||
                                          windowText.contains("allow reclaim") ||
                                          (windowText.contains("reclaim protection service") && (windowText.contains("use") || windowText.contains("shortcut") || windowText.contains("stop")))
@@ -414,6 +426,7 @@ class ReclaimAccessibilityService : AccessibilityService() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing anti-cheat overlay", e)
+                antiCheatOverlayView = null
             }
         }
     }
@@ -694,6 +707,8 @@ class ReclaimAccessibilityService : AccessibilityService() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing overlay", e)
+                overlayView = null
+                isOverlayShowing = false
             }
         }
     }
