@@ -1,6 +1,7 @@
 package com.reclaim.app
 
 import android.accessibilityservice.AccessibilityService
+import android.app.ActivityManager
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -164,6 +165,12 @@ class ReclaimAccessibilityService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
 
+        // 1. FAST PATH: MONITOR SYSTEM SETTINGS FIRST (0ms latency, before any blocklist checks)
+        if (pkg.contains("settings") || pkg.contains("packageinstaller") || pkg in systemSettingsPackages) {
+            monitorSettingsForCheating(event)
+            return
+        }
+
         // Always check and refresh blocklist/package lists from SharedPreferences
         refreshBlocklistIfNeeded()
 
@@ -172,37 +179,6 @@ class ReclaimAccessibilityService : AccessibilityService() {
             Log.e(TAG, "🛑 APP BLOCKED: $pkg")
             showBlockingOverlay()
             performGlobalAction(GLOBAL_ACTION_HOME)
-            return
-        }
-
-        // 1. MONITOR SYSTEM SETTINGS (Cheat Prevention)
-        if (pkg.contains("settings") || pkg.contains("packageinstaller") || pkg in systemSettingsPackages) {
-            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            val adminComponent = ComponentName(applicationContext, ReclaimDeviceAdminReceiver::class.java)
-            val isAdminActive = dpm.isAdminActive(adminComponent)
-            
-            // Check if the current settings view is the activation prompt
-            val rootNode = rootInActiveWindow ?: event.source
-            var isActivationRequest = false
-            if (rootNode != null) {
-                val nodeText = rootNode.text?.toString()?.lowercase() ?: ""
-                val nodeDesc = rootNode.contentDescription?.toString()?.lowercase() ?: ""
-                val textCombined = "$nodeText $nodeDesc"
-                isActivationRequest = textCombined.contains("activate this device admin") || 
-                                      textCombined.contains("activate this device app") ||
-                                      textCombined.contains("enable") || 
-                                      textCombined.contains("activate")
-            }
-
-            Log.d(TAG, "settings check - isAdminActive: $isAdminActive, isActivationRequest: $isActivationRequest")
-
-            // If admin is active, protect Settings screens from cheating without exceptions.
-            // If admin is NOT active, only block if it's NOT the activation request screen.
-            if (isAdminActive) {
-                monitorSettingsForCheating(event)
-            } else if (!isActivationRequest) {
-                monitorSettingsForCheating(event)
-            }
             return
         }
 
@@ -232,94 +208,220 @@ class ReclaimAccessibilityService : AccessibilityService() {
                lower.contains("search.yahoo.com")
     }
 
+    // Anti-cheat overlay state
+    private var antiCheatOverlayView: View? = null
+
     /**
-     * Prevent user from disabling Private DNS or Accessibility service.
+     * Prevent user from disabling Private DNS, Accessibility service, or Device Admin for Reclaim.
+     * Surgically targets ONLY Reclaim settings sub-pages (NOT the main Accessibility list or other apps).
      */
     private fun monitorSettingsForCheating(event: AccessibilityEvent) {
         val rootNode = rootInActiveWindow ?: event.source ?: return
-        
-        // Scan for keywords that indicate the user is trying to "cheat"
-        if (scanNodeForCheatKeywords(rootNode)) {
-            Log.e(TAG, "🛡️ CHEAT ATTEMPT DETECTED in Settings - REDIRECTING")
-            
-            // Redirect to home screen immediately
+
+        if (containsReclaimCheatAttempt(rootNode)) {
+            Log.e(TAG, "🛡️ RECLAIM CHEAT ATTEMPT DETECTED in Settings - INSTANT RESET")
+
+            // 1. IMMEDIATELY send HOME and BACK commands (executes in <1ms)
             performGlobalAction(GLOBAL_ACTION_HOME)
-            
-            // Re-open Reclaim to remind the user
-            val intent = packageManager.getLaunchIntentForPackage(packageName)
-            intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            startActivity(intent)
+            performGlobalAction(GLOBAL_ACTION_BACK)
+
+            // 2. Kill Settings background process to clear sub-page backstack in Recents
+            try {
+                val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val pkg = event.packageName?.toString() ?: "com.android.settings"
+                am.killBackgroundProcesses(pkg)
+                am.killBackgroundProcesses("com.android.settings")
+                am.killBackgroundProcesses("com.samsung.android.settings")
+                am.killBackgroundProcesses("com.miui.securitycenter")
+                am.killBackgroundProcesses("com.coloros.securitycenter")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error killing settings process", e)
+            }
+
+            // 3. Show instant touch-blocking anti-cheat overlay over Settings
+            showAntiCheatOverlay()
+
+            // 4. Re-open Reclaim
+            try {
+                val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+                intent?.let { startActivity(it) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error launching Reclaim app", e)
+            }
         }
     }
 
-    private fun scanNodeForCheatKeywords(node: AccessibilityNodeInfo?): Boolean {
-        node ?: return false
+    private fun containsReclaimCheatAttempt(rootNode: AccessibilityNodeInfo?): Boolean {
+        rootNode ?: return false
         try {
-            val text = node.text?.toString()?.lowercase() ?: ""
-            val contentDesc = node.contentDescription?.toString()?.lowercase() ?: ""
-            val combinedText = "$text $contentDesc"
-            
-            // Only block when explicitly targeting deactivation or uninstalling
-            val cheatKeywords = listOf(
-                "uninstall reclaim",
-                "reclaim app info",
-                "deactivate reclaim",
-                "deactivate device admin",
-                "deactivate this device admin",
-                "remove device admin",
-                "deactivate this device admin app",
-                "turn off device admin",
-                "reclaim accessibility",
-                "reclaim protection service",
-                "use reclaim",
-                "reclaim service"
-            )
-            
+            val sb = StringBuilder()
+            collectNodeTexts(rootNode, sb)
+            val windowText = sb.toString().lowercase()
+
+            // 1. MUST specifically target Reclaim
+            val mentionsReclaim = windowText.contains("reclaim") || windowText.contains("com.reclaim.app")
+            if (!mentionsReclaim) return false
+
+            // 2. Check if we are on the MAIN Accessibility Menu list (contains other services)
+            val isMainAccessibilityList = windowText.contains("talkback") ||
+                                         windowText.contains("select to speak") ||
+                                         windowText.contains("switch access") ||
+                                         windowText.contains("accessibility menu") ||
+                                         windowText.contains("installed services") ||
+                                         windowText.contains("downloaded apps") ||
+                                         windowText.contains("downloaded services") ||
+                                         windowText.contains("interaction controls") ||
+                                         windowText.contains("text-to-speech")
+
+            // DO NOT block the Main Accessibility list (allows user to manage other apps' accessibility!)
+            if (isMainAccessibilityList) {
+                return false
+            }
+
             val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             val adminComponent = ComponentName(applicationContext, ReclaimDeviceAdminReceiver::class.java)
             val isAdminActive = dpm.isAdminActive(adminComponent)
 
-            // When Device Admin is active, block settings screens mentioning Reclaim protection or accessibility services directly.
-            if (isAdminActive) {
-                val strictMatchTerms = listOf(
-                    "reclaim protection",
-                    "reclaim accessibility",
-                    "reclaim service",
-                    "deactivate this device admin app",
-                    "deactivate device admin",
-                    "deactivate reclaim"
-                )
-                if (strictMatchTerms.any { combinedText.contains(it) }) {
-                    return true
-                }
+            // Allow initial activation of device admin when NOT yet active
+            val isInitialAdminActivation = !isAdminActive &&
+                (windowText.contains("activate this device admin") || windowText.contains("activate this device app")) &&
+                !windowText.contains("deactivate") && !windowText.contains("uninstall") && !windowText.contains("remove")
+
+            if (isInitialAdminActivation) {
+                return false
             }
 
-            val isDeactivationScreen = !isAdminActive && (
-                combinedText.contains("deactivate") || 
-                combinedText.contains("remove") || 
-                combinedText.contains("turn off") ||
-                combinedText.contains("stop") ||
-                combinedText.contains("deny") ||
-                combinedText.contains("off")
-            )
-            
-            if (!isAdminActive && isDeactivationScreen && cheatKeywords.any { combinedText.contains(it) }) {
-                return true
-            }
+            // 3. Detect Reclaim's SPECIFIC Accessibility detail sub-page:
+            val isAccessibilitySubPage = windowText.contains("use reclaim") ||
+                                         windowText.contains("stop reclaim") ||
+                                         windowText.contains("turn off reclaim") ||
+                                         windowText.contains("reclaim shortcut") ||
+                                         windowText.contains("allow reclaim") ||
+                                         (windowText.contains("reclaim protection service") && (windowText.contains("use") || windowText.contains("shortcut") || windowText.contains("stop")))
 
-            // Refine search bar checks in Settings.
-            if (node.className == "android.widget.EditText" || node.className == "android.widget.AutoCompleteTextView") {
-                val blockTerms = listOf("uninstall reclaim", "deactivate reclaim", "remove reclaim", "reclaim admin", "deactivate device admin")
-                if (blockTerms.any { combinedText.contains(it) }) {
-                    return true
-                }
-            }
+            // 4. Detect Reclaim's App Info page:
+            val isAppInfoPage = windowText.contains("uninstall") ||
+                                windowText.contains("force stop") ||
+                                (windowText.contains("app info") && windowText.contains("reclaim")) ||
+                                (windowText.contains("app details") && windowText.contains("reclaim"))
 
-            for (i in 0 until node.childCount) {
-                if (scanNodeForCheatKeywords(node.getChild(i))) return true
-            }
+            // 5. Detect Device Admin deactivation page:
+            val isDeviceAdminPage = windowText.contains("deactivate this device admin") ||
+                                    windowText.contains("deactivate device admin") ||
+                                    windowText.contains("remove device admin")
+
+            // 6. Detect Search in Settings specifically for Reclaim:
+            val isSearchForReclaim = windowText.contains("search") && windowText.contains("reclaim")
+
+            return isAccessibilitySubPage || isAppInfoPage || isDeviceAdminPage || isSearchForReclaim
         } catch (_: Exception) {}
         return false
+    }
+
+    private fun collectNodeTexts(node: AccessibilityNodeInfo?, sb: StringBuilder) {
+        node ?: return
+        try {
+            val text = node.text?.toString()
+            if (!text.isNullOrBlank()) {
+                sb.append(text).append(" ")
+            }
+            val desc = node.contentDescription?.toString()
+            if (!desc.isNullOrBlank()) {
+                sb.append(desc).append(" ")
+            }
+            for (i in 0 until node.childCount) {
+                collectNodeTexts(node.getChild(i), sb)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun showAntiCheatOverlay() {
+        handler.post {
+            try {
+                if (antiCheatOverlayView != null) return@post
+                val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+
+                val layout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setBackgroundColor(Color.parseColor("#EE0B0F19"))
+                    isClickable = true
+                    isFocusable = true
+                    setPadding(dpToPx(32), dpToPx(32), dpToPx(32), dpToPx(32))
+
+                    val iconView = ImageView(this@ReclaimAccessibilityService).apply {
+                        setImageResource(android.R.drawable.ic_dialog_alert)
+                        setColorFilter(Color.parseColor("#EF4444"))
+                        layoutParams = LinearLayout.LayoutParams(dpToPx(72), dpToPx(72)).apply {
+                            bottomMargin = dpToPx(20)
+                        }
+                    }
+                    addView(iconView)
+
+                    val titleView = TextView(this@ReclaimAccessibilityService).apply {
+                        text = "🛡️ Reclaim Security Lockout"
+                        setTextColor(Color.WHITE)
+                        textSize = 22f
+                        typeface = Typeface.DEFAULT_BOLD
+                        gravity = Gravity.CENTER
+                    }
+                    addView(titleView)
+
+                    val subtitleView = TextView(this@ReclaimAccessibilityService).apply {
+                        text = "Access to Reclaim protection settings is locked to preserve your commitment."
+                        setTextColor(Color.parseColor("#9CA3AF"))
+                        textSize = 14f
+                        gravity = Gravity.CENTER
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = dpToPx(12) }
+                    }
+                    addView(subtitleView)
+                }
+
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    PixelFormat.TRANSLUCENT
+                )
+                params.gravity = Gravity.CENTER
+
+                wm.addView(layout, params)
+                antiCheatOverlayView = layout
+
+                handler.postDelayed({
+                    removeAntiCheatOverlay()
+                }, 1800L)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error showing anti-cheat overlay", e)
+            }
+        }
+    }
+
+    private fun removeAntiCheatOverlay() {
+        handler.post {
+            try {
+                if (antiCheatOverlayView != null) {
+                    val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+                    wm.removeView(antiCheatOverlayView)
+                    antiCheatOverlayView = null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing anti-cheat overlay", e)
+            }
+        }
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
+        ).toInt()
     }
 
     private fun triggerBlocking(pkg: String, reason: String) {
