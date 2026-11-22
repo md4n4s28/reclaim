@@ -252,8 +252,11 @@ class AppProvider extends ChangeNotifier {
     
     _recalculateStreak();
 
-    // ── Sync blocklist to native side ──
-    await ProtectionService.syncBlocklist(_blockedSites);
+    // ── Sync blocklist to native side asynchronously without blocking startup ──
+    ProtectionService.syncBlocklist(_blockedSites).catchError((e) {
+      debugPrint("Error syncing blocklist: $e");
+      return false;
+    });
 
     // ── Load category toggles ──
     for (final key in _categoryToggles.keys) {

@@ -40,6 +40,8 @@ class MainActivity : FlutterActivity() {
     
     override fun onResume() {
         super.onResume()
+        // Ensure any floating accessibility overlays are removed when Reclaim comes to foreground
+        ReclaimAccessibilityService.instance?.dismissAllOverlays()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

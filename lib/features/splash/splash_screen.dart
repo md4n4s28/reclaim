@@ -21,9 +21,17 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _init() async {
-    await context.read<AppProvider>().load();
-    await context.read<ThemeProvider>().load();
-    await Future.delayed(const Duration(milliseconds: 2200));
+    try {
+      await Future.wait([
+        context.read<AppProvider>().load().timeout(const Duration(seconds: 4)),
+        context.read<ThemeProvider>().load().timeout(const Duration(seconds: 2)),
+      ]).timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint("Startup load warning/timeout: $e");
+    }
+
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 1000));
     if (mounted) {
       final provider = context.read<AppProvider>();
       if (provider.hasCompletedOnboarding) {

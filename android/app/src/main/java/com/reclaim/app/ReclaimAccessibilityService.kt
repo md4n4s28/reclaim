@@ -39,6 +39,21 @@ class ReclaimAccessibilityService : AccessibilityService() {
         const val TAG = "ReclaimA11y"
         private const val CACHE_REFRESH_MS = 60_000L // Refresh blocklist every 60s
         private const val DEBOUNCE_MS = 3_000L // 3-second debounce
+
+        @Volatile
+        var instance: ReclaimAccessibilityService? = null
+            private set
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        Log.d(TAG, "ReclaimAccessibilityService connected")
+    }
+
+    fun dismissAllOverlays() {
+        removeAntiCheatOverlay()
+        removeOverlay()
     }
 
     // Browser package → address bar view IDs
@@ -189,7 +204,13 @@ class ReclaimAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (pkg !in supportedBrowserPackages) return
+        val isKnownBrowser = pkg in supportedBrowserPackages
+        val isLikelyBrowserOrMedia = isKnownBrowser ||
+                pkg.contains("browser") ||
+                pkg.contains("downloader") ||
+                pkg.contains("snaptube") ||
+                pkg.contains("videoder") ||
+                pkg.contains("tube")
 
         // 2. Check URL bar for blocked domains or keywords in search URL
         val url = extractUrl(event, pkg) ?: ""
@@ -198,11 +219,14 @@ class ReclaimAccessibilityService : AccessibilityService() {
             return
         }
 
-        // 3. Scan entire screen ONLY if on a search engine to prevent false positives on news/github
+        // 3. Scan screen nodes for adult keywords/content if inside a browser, media/downloader app, or search engine
         val rootNode = rootInActiveWindow ?: event.source
-        if (rootNode != null && isSearchEngineUrl(url)) {
-            if (scanNodeForCriticalKeywords(rootNode)) {
-                triggerBlocking(pkg, "Screen Keyword detected")
+        if (rootNode != null) {
+            if (isSearchEngineUrl(url) || isLikelyBrowserOrMedia || isBlocked(url)) {
+                if (scanNodeForCriticalKeywords(rootNode)) {
+                    triggerBlocking(pkg, "Screen Keyword detected")
+                    return
+                }
             }
         }
     }
@@ -223,9 +247,19 @@ class ReclaimAccessibilityService : AccessibilityService() {
      * Surgically targets ONLY Reclaim settings sub-pages (NOT the main Accessibility list or other apps).
      */
     private fun monitorSettingsForCheating(event: AccessibilityEvent) {
-        val rootNode = rootInActiveWindow ?: event.source ?: return
+        val rootNode = rootInActiveWindow ?: event.source
 
-        if (containsReclaimCheatAttempt(rootNode)) {
+        // 1. Check if an alert dialog or confirmation popup is visible trying to stop Reclaim
+        if (rootNode != null && dismissConfirmationDialogIfTargetingReclaim(rootNode)) {
+            Log.e(TAG, "🛡️ RECLAIM DEACTIVATION DIALOG DISMISSED")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            showAntiCheatOverlay()
+            return
+        }
+
+        // 2. Check general cheat attempt in current window hierarchy
+        if (rootNode != null && containsReclaimCheatAttempt(rootNode, event)) {
             Log.e(TAG, "🛡️ RECLAIM CHEAT ATTEMPT DETECTED in Settings - INSTANT RESET")
 
             // 1. IMMEDIATELY send HOME and BACK commands (executes in <1ms)
@@ -260,27 +294,72 @@ class ReclaimAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun containsReclaimCheatAttempt(rootNode: AccessibilityNodeInfo?): Boolean {
+    private fun dismissConfirmationDialogIfTargetingReclaim(rootNode: AccessibilityNodeInfo): Boolean {
+        try {
+            val sb = StringBuilder()
+            collectNodeTexts(rootNode, sb)
+            val text = sb.toString().lowercase()
+
+            val isDialog = text.contains("stop") || text.contains("turn off") || text.contains("disable") || text.contains("uninstall")
+            val targetsReclaim = text.contains("reclaim") || text.contains("com.reclaim.app")
+
+            if (isDialog && targetsReclaim) {
+                // Try clicking Cancel button first if available
+                val cancelNodes = rootNode.findAccessibilityNodeInfosByViewId("android:id/button2")
+                if (cancelNodes.isNotEmpty()) {
+                    for (node in cancelNodes) {
+                        if (node.isClickable) {
+                            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            return true
+                        }
+                    }
+                }
+                return true
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    private fun containsReclaimCheatAttempt(rootNode: AccessibilityNodeInfo?, event: AccessibilityEvent?): Boolean {
         rootNode ?: return false
         try {
             val sb = StringBuilder()
             collectNodeTexts(rootNode, sb)
             val windowText = sb.toString().lowercase()
+            val className = event?.className?.toString()?.lowercase() ?: ""
 
-            // 1. MUST specifically target Reclaim
+            // 1. Check if class name directly identifies an accessibility service toggle fragment
+            if (className.contains("toggleaccessibilityservicepreferencefragment") ||
+                className.contains("accessibilityservicewarningsummary") ||
+                className.contains("installedappdetail")
+            ) {
+                if (windowText.contains("reclaim") || windowText.contains("com.reclaim.app")) {
+                    return true
+                }
+            }
+
+            // 2. MUST specifically target Reclaim
             val mentionsReclaim = windowText.contains("reclaim") || windowText.contains("com.reclaim.app")
             if (!mentionsReclaim) return false
 
-            // 2. Check if we are on the MAIN Accessibility Menu list (contains other services)
-            val isMainAccessibilityList = windowText.contains("talkback") ||
-                                         windowText.contains("select to speak") ||
-                                         windowText.contains("switch access") ||
-                                         windowText.contains("accessibility menu") ||
-                                         windowText.contains("installed services") ||
-                                         windowText.contains("downloaded apps") ||
-                                         windowText.contains("downloaded services") ||
-                                         windowText.contains("interaction controls") ||
-                                         windowText.contains("text-to-speech")
+            // 3. Check if we are on the MAIN Accessibility Menu list (contains other services)
+            // Note: If the detail page has a switch or says "use service" / "turn off", it is NOT the main list!
+            val hasToggleSwitch = windowText.contains("use reclaim") || 
+                                 windowText.contains("stop reclaim") || 
+                                 windowText.contains("turn off") ||
+                                 windowText.contains("reclaim shortcut")
+
+            val isMainAccessibilityList = !hasToggleSwitch && (
+                windowText.contains("talkback") ||
+                windowText.contains("select to speak") ||
+                windowText.contains("switch access") ||
+                windowText.contains("accessibility menu") ||
+                windowText.contains("installed services") ||
+                windowText.contains("downloaded apps") ||
+                windowText.contains("downloaded services") ||
+                windowText.contains("interaction controls") ||
+                windowText.contains("text-to-speech")
+            )
 
             // DO NOT block the Main Accessibility list (allows user to manage other apps' accessibility!)
             if (isMainAccessibilityList) {
@@ -300,7 +379,7 @@ class ReclaimAccessibilityService : AccessibilityService() {
                 return false
             }
 
-            // 3. Detect Reclaim's SPECIFIC Accessibility detail sub-page or Confirmation Popup:
+            // 4. Detect Reclaim's SPECIFIC Accessibility detail sub-page or Confirmation Popup:
             val isConfirmationPopup = windowText.contains("stop reclaim") ||
                                       windowText.contains("turn off reclaim") ||
                                       windowText.contains("disable reclaim") ||
@@ -311,20 +390,20 @@ class ReclaimAccessibilityService : AccessibilityService() {
                                          windowText.contains("use reclaim") ||
                                          windowText.contains("reclaim shortcut") ||
                                          windowText.contains("allow reclaim") ||
-                                         (windowText.contains("reclaim protection service") && (windowText.contains("use") || windowText.contains("shortcut") || windowText.contains("stop")))
+                                         (windowText.contains("reclaim protection service") && (windowText.contains("use") || windowText.contains("shortcut") || windowText.contains("stop") || windowText.contains("on") || windowText.contains("off")))
 
-            // 4. Detect Reclaim's App Info page:
+            // 5. Detect Reclaim's App Info page:
             val isAppInfoPage = windowText.contains("uninstall") ||
                                 windowText.contains("force stop") ||
                                 (windowText.contains("app info") && windowText.contains("reclaim")) ||
                                 (windowText.contains("app details") && windowText.contains("reclaim"))
 
-            // 5. Detect Device Admin deactivation page:
+            // 6. Detect Device Admin deactivation page:
             val isDeviceAdminPage = windowText.contains("deactivate this device admin") ||
                                     windowText.contains("deactivate device admin") ||
                                     windowText.contains("remove device admin")
 
-            // 6. Detect Search in Settings specifically for Reclaim:
+            // 7. Detect Search in Settings specifically for Reclaim:
             val isSearchForReclaim = windowText.contains("search") && windowText.contains("reclaim")
 
             return isAccessibilitySubPage || isAppInfoPage || isDeviceAdminPage || isSearchForReclaim
@@ -438,35 +517,31 @@ class ReclaimAccessibilityService : AccessibilityService() {
     }
 
     private fun triggerBlocking(pkg: String, reason: String) {
-        Log.e(TAG, "🚨 BLOCKED CONTENT: $reason")
+        val now = System.currentTimeMillis()
+        if (now - lastBlockedTime < 1000L) return
+        lastBlockedTime = now
+
+        Log.e(TAG, "🚨 BLOCKED CONTENT: $reason in $pkg")
         currentBlockedPackage = pkg
         
-        // 1. Immediately redirect the browser to a motivational blog
+        // 1. Instantly fire Back action to cancel navigation or exit video player
+        performGlobalAction(GLOBAL_ACTION_BACK)
+
+        // 2. Show the non-dismissible blocking overlay
+        showBlockingOverlay()
+
+        // 3. Optional: redirect external browsers to recovery blog, or go home for in-app browsers
         try {
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://easypeasymethod.org/"))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            
-            // FORCE the intent to open in the specific browser the user is currently using
-            // so they don't get kicked out to a different default browser (e.g. from Brave to Chrome).
-            intent.setPackage(pkg)
-            
-            try {
-                startActivity(intent)
-            } catch (ex: android.content.ActivityNotFoundException) {
-                // Fallback: If for some reason the specific package can't handle it,
-                // try without specifying the package to let the system default handle it.
-                intent.setPackage(null)
-                startActivity(intent)
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://easypeasymethod.org/")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error redirecting to blog", e)
+            if (supportedBrowserPackages.contains(pkg)) {
+                intent.setPackage(pkg)
+            }
+            startActivity(intent)
+        } catch (_: Exception) {
+            performGlobalAction(GLOBAL_ACTION_HOME)
         }
-        
-        // 2. We skip forcing the home screen so they can read the blog, 
-        // but we still clear recent apps internally so they can't easily go back to the porn tab.
-        // We will also skip the overlay here because the redirect is the primary intervention.
-        // This solves the "stuck" overlay issue while forcing them to read the blog.
     }
 
     private fun scanNodeForCriticalKeywords(node: AccessibilityNodeInfo?): Boolean {
@@ -545,8 +620,25 @@ class ReclaimAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {}
         }
 
-        // Fallback: try to find any EditText or search-related node
+        // Try extracting text from the event itself if relevant
+        val eventText = event.text?.joinToString(" ")
+        if (!eventText.isNullOrBlank() && looksLikeUrlOrSearch(eventText)) {
+            return eventText
+        }
+
+        // Fallback: search the node tree
         return findUrlInNodeTree(rootNode)
+    }
+
+    private fun looksLikeUrlOrSearch(text: String): Boolean {
+        val lower = text.lowercase()
+        return lower.contains(".com") || lower.contains(".org") ||
+                lower.contains(".net") || lower.contains(".tv") ||
+                lower.contains(".desi") || lower.contains(".press") ||
+                lower.contains(".xxx") || lower.contains(".site") ||
+                lower.contains("www.") || lower.contains("http") ||
+                lower.contains("search?") || lower.contains("query=") ||
+                lower.contains("?q=") || lower.contains("google.com/search")
     }
 
     /**
@@ -556,17 +648,13 @@ class ReclaimAccessibilityService : AccessibilityService() {
         node ?: return null
         try {
             val text = node.text?.toString()
-            if (!text.isNullOrBlank()) {
-                val lower = text.lowercase()
-                // Only pick up text that looks like a URL or search query to avoid false positives
-                if (lower.contains(".com") || lower.contains(".org") ||
-                    lower.contains(".net") || lower.contains("www.") || 
-                    lower.contains("http") || lower.contains("search?") ||
-                    lower.contains("query=") || lower.contains("?q=") ||
-                    lower.contains("google.com/search")
-                ) {
-                    return text
-                }
+            if (!text.isNullOrBlank() && looksLikeUrlOrSearch(text)) {
+                return text
+            }
+
+            val desc = node.contentDescription?.toString()
+            if (!desc.isNullOrBlank() && looksLikeUrlOrSearch(desc)) {
+                return desc
             }
 
             for (i in 0 until node.childCount) {
@@ -618,9 +706,14 @@ class ReclaimAccessibilityService : AccessibilityService() {
             .split("?")[0]
             .split(":")[0]
 
-        // 3. Wildcard matching for xhamster and other major porn brands
-        val brandWildcards = listOf("xhamster", "pornhub", "xnxx", "xvideos", "redtube", "youporn", "spankbang")
-        if (brandWildcards.any { domain.contains(it) }) {
+        // 3. Robust wildcard and root brand matching for adult brands and mirrors
+        val brandWildcards = listOf(
+            "xhamster", "pornhub", "xnxx", "xvideos", "redtube", "youporn",
+            "spankbang", "beeg", "brazzers", "bangbros", "eporner", "tube8",
+            "tnaflix", "thumbzilla", "chaturbate", "stripchat", "onlyfans",
+            "xhvid", "xhcdn", "x-hamster"
+        )
+        if (brandWildcards.any { domain.contains(it) || lower.contains(it) }) {
             Log.e(TAG, "🚨 BRAND WILDCARD BLOCKED: $domain")
             return true
         }
@@ -840,6 +933,10 @@ class ReclaimAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (instance == this) {
+            instance = null
+        }
+        removeAntiCheatOverlay()
         removeOverlay()
         super.onDestroy()
     }
