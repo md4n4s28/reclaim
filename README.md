@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="screenshorts/01_home_dashboard.png" width="120" alt="Reclaim Logo" style="border-radius: 24px;" />
-</p>
+
 
 <h1 align="center">Reclaim - Blocker & Urge Control</h1>
 
@@ -40,21 +38,21 @@ Everything runs 100% on-device with zero analytics, zero external telemetry, and
 
 ## Screenshots Showcase
 
-| Home Dashboard | Emergency Mode | Breathwork Protocols |
+| 01_home_dashboard.png | 01_home_dashboard_2.png | 02_pin_lock_screen.jpeg |
 | :---: | :---: | :---: |
-| <img src="screenshorts/01_home_dashboard.png" width="230" alt="Home Dashboard" /> | <img src="screenshorts/10_emergency_mode.png" width="230" alt="Emergency Mode & Wave Simulator" /> | <img src="screenshorts/11_breathing_protocols.png" width="230" alt="Breathing Protocols" /> |
+| <img src="screenshorts/01_home_dashboard.png" width="230" alt="01_home_dashboard" /> | <img src="screenshorts/01_home_dashboard_2.png" width="230" alt="01_home_dashboard_2" /> | <img src="screenshorts/02_pin_lock_screen.jpeg" width="230" alt="02_pin_lock_screen" /> |
 
-| Block & Firewall Hub | Journey & Progress | Recovery Journal |
+| 03_journal.png | 03_journal_2.jpeg | 04_journey_progress.png |
 | :---: | :---: | :---: |
-| <img src="screenshorts/04_block_hub.png" width="230" alt="Content & App Blocker Hub" /> | <img src="screenshorts/05_journey_progress.png" width="230" alt="Sobriety Progress & Calendar" /> | <img src="screenshorts/06_recovery_journal.png" width="230" alt="Daily Recovery Journal" /> |
+| <img src="screenshorts/03_journal.png" width="230" alt="03_journal" /> | <img src="screenshorts/03_journal_2.jpeg" width="230" alt="03_journal_2" /> | <img src="screenshorts/04_journey_progress.png" width="230" alt="04_journey_progress" /> |
 
-| 4-Digit PIN Lock | PIN Keypad Setup | Advanced Hardening |
+| 05_Blocking_protection.png | 06_breathing_protocols.png | 07_Custom_app_&_web_blocker.png |
 | :---: | :---: | :---: |
-| <img src="screenshorts/02_pin_lock_screen.png" width="230" alt="4-Digit Security PIN Lock" /> | <img src="screenshorts/07_pin_setup_sheet.png" width="230" alt="PIN Setup & Verification Sheet" /> | <img src="screenshorts/03_advanced_hardening.png" width="230" alt="Advanced Protection & Hardening" /> |
+| <img src="screenshorts/05_Blocking_protection.png" width="230" alt="05_Blocking_protection" /> | <img src="screenshorts/06_breathing_protocols.png" width="230" alt="06_breathing_protocols" /> | <img src="screenshorts/07_Custom_app_%26_web_blocker.png" width="230" alt="07_Custom_app_&_web_blocker" /> |
 
-| Settings & Preferences | About & Version v2.1.0 |
-| :---: | :---: |
-| <img src="screenshorts/08_settings_overview.png" width="230" alt="Settings & Privacy Controls" /> | <img src="screenshorts/09_settings_about.png" width="230" alt="About & Version 2.1.0" /> |
+| 08_settings_overview.png | 09_settings_about.png | 10_emergency_mode.png |
+| :---: | :---: | :---: |
+| <img src="screenshorts/08_settings_overview.png" width="230" alt="08_settings_overview" /> | <img src="screenshorts/09_settings_about.png" width="230" alt="09_settings_about" /> | <img src="screenshorts/10_emergency_mode.png" width="230" alt="10_emergency_mode" /> |
 
 ---
 
