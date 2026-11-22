@@ -708,6 +708,9 @@ class AppProvider extends ChangeNotifier {
         _recentActivity.map((a) => jsonEncode(a.toJson())).toList());
     await prefs.setStringList('timed_blocks',
         _timedBlocks.where((t) => !t.isExpired).map((t) => jsonEncode(t.toJson())).toList());
+
+    // ── Update Android Home Screen 2x2 Widget ──
+    ProtectionService.updateWidget();
   }
 
   static final List<String> _defaultSites = [

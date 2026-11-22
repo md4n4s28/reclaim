@@ -249,7 +249,7 @@ class _TacticalPanicBanner extends StatelessWidget {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Tap for guided 60-second urge intervention',
+                    'Tap for 15-min Urge Surfing wave & shield',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11.5,
@@ -298,16 +298,7 @@ class _MetricsBar extends StatelessWidget {
             label: 'Urges Defeated',
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MetricChip(
-            icon: Icons.hourglass_top_rounded,
-            iconColor: AppColors.primaryGlow,
-            value: provider.focusTimeSavedLabel,
-            label: 'Time Reclaimed',
-          ),
-        ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: _MetricChip(
             icon: Icons.block_rounded,

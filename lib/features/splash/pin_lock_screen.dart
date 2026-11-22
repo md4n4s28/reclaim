@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
@@ -18,15 +19,22 @@ class _PinLockScreenState extends State<PinLockScreen> {
 
   void _onKeyPress(String val) {
     if (_enteredCode.length < 4) {
+      HapticFeedback.lightImpact();
       setState(() {
         _enteredCode.add(val);
         _errorMessage = "";
       });
+      if (_enteredCode.length == 4) {
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (mounted) _verifyCode();
+        });
+      }
     }
   }
 
   void _onBackspace() {
     if (_enteredCode.isNotEmpty) {
+      HapticFeedback.selectionClick();
       setState(() {
         _enteredCode.removeLast();
         _errorMessage = "";
@@ -44,8 +52,10 @@ class _PinLockScreenState extends State<PinLockScreen> {
     final code = _enteredCode.join();
     final verified = context.read<AppProvider>().verifyPin(code);
     if (verified) {
+      HapticFeedback.mediumImpact();
       widget.onUnlocked();
     } else {
+      HapticFeedback.heavyImpact();
       setState(() {
         _enteredCode.clear();
         _errorMessage = "Incorrect PIN. Try again.";

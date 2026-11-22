@@ -157,6 +157,15 @@ class ProtectionService {
     }
   }
 
+  /// Triggers an immediate refresh of the Android home screen widget.
+  static Future<void> updateWidget() async {
+    try {
+      await _protectionChannel.invokeMethod('updateWidget');
+    } catch (e) {
+      // Silently ignore if widget is not installed
+    }
+  }
+
   // ── Usage Stats ──
   static const _usageChannel = MethodChannel('com.reclaim.app/usage');
 

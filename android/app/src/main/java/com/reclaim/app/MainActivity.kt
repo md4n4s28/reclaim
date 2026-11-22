@@ -42,6 +42,8 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         // Ensure any floating accessibility overlays are removed when Reclaim comes to foreground
         ReclaimAccessibilityService.instance?.dismissAllOverlays()
+        // Update home screen widget whenever user returns to the app
+        ReclaimStreakWidget.updateAllWidgets(this)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -177,6 +179,10 @@ class MainActivity : FlutterActivity() {
                             result.success(false)
                         }
                     }
+                }
+                "updateWidget" -> {
+                    ReclaimStreakWidget.updateAllWidgets(this)
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }

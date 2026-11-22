@@ -122,6 +122,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- Reclaim 2x2 Streak Widget -->
+        <receiver
+            android:name=".ReclaimStreakWidget"
+            android:exported="true"
+            android:label="Daily Focus Streak">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.reclaim.app.ACTION_UPDATE_STREAK" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_streak_info" />
+        </receiver>
+
         <!-- Flutter metadata -->
         <meta-data
             android:name="flutterEmbedding"
