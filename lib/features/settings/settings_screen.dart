@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../core/app_provider.dart';
 import '../../core/theme_provider.dart';
 import '../../core/bottom_nav.dart';
+import 'advanced_protection_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -155,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Reclaim is an accountability tool created to assist users in building self-discipline, stopping pornography consumption, and establishing digital health boundaries. By using Reclaim, you agree to use it as a personal self-restraint utility.',
+                  'Reclaim is an accountability tool created to assist users in building self-discipline, stopping compulsive digital habits, and establishing healthy screen boundaries. By using Reclaim, you agree to use it as a personal self-restraint utility.',
                   style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
                 ),
                 SizedBox(height: 12),
@@ -453,7 +454,7 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.info_outline_rounded,
                   iconColor: AppColors.textMuted,
                   title: 'Reclaim Version',
-                  subtitle: 'v1.0.0+1 (Native Zero-Latency Engine)',
+                  subtitle: 'v2.1.0 (Native Zero-Latency Engine)',
                   onTap: null,
                 ),
               ],
@@ -544,75 +545,16 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showPinDialog(BuildContext context, AppProvider provider) {
-    final controller = TextEditingController();
-    showDialog(
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          provider.hasPin ? 'Update Security PIN' : 'Set 4-Digit PIN',
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Enter a 4-digit numeric PIN to protect access to Reclaim.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              obscureText: true,
-              style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 8, fontSize: 18),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.surface,
-                counterText: '',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (provider.hasPin)
-            TextButton(
-              onPressed: () {
-                provider.removePin();
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PIN removed.'), backgroundColor: AppColors.warning),
-                );
-              },
-              child: const Text('Remove PIN', style: TextStyle(color: AppColors.danger)),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              if (controller.text.length == 4) {
-                provider.setPin(controller.text);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PIN saved successfully!'), backgroundColor: AppColors.accent),
-                );
-              }
-            },
-            child: const Text('Save PIN', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (ctx) => PinSetupSheet(provider: provider),
     );
   }
 }

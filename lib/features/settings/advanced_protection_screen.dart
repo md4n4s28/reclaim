@@ -191,130 +191,308 @@ class _AppLockCard extends StatelessWidget {
 
   void _showPinDialog(BuildContext context, AppProvider provider) {
     HapticFeedback.lightImpact();
-    final controller = TextEditingController();
-    final confirmController = TextEditingController();
-    bool isConfirming = false;
-    String firstPin = "";
-
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            isConfirming ? 'Confirm PIN' : (provider.hasPin ? 'Change or Remove PIN' : 'Set Protection PIN'),
-            style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => PinSetupSheet(provider: provider),
+    );
+  }
+}
+
+class PinSetupSheet extends StatefulWidget {
+  final AppProvider provider;
+  const PinSetupSheet({super.key, required this.provider});
+
+  @override
+  State<PinSetupSheet> createState() => _PinSetupSheetState();
+}
+
+class _PinSetupSheetState extends State<PinSetupSheet> {
+  bool _isConfirming = false;
+  final List<String> _firstPin = [];
+  final List<String> _confirmPin = [];
+  String _errorMessage = "";
+
+  List<String> get _currentList => _isConfirming ? _confirmPin : _firstPin;
+
+  void _onKeyPress(String val) {
+    if (_currentList.length < 4) {
+      HapticFeedback.lightImpact();
+      setState(() {
+        _currentList.add(val);
+        _errorMessage = "";
+      });
+
+      if (_currentList.length == 4) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
+          if (!_isConfirming) {
+            setState(() {
+              _isConfirming = true;
+            });
+          } else {
+            _checkMatch();
+          }
+        });
+      }
+    }
+  }
+
+  void _onBackspace() {
+    if (_currentList.isNotEmpty) {
+      HapticFeedback.selectionClick();
+      setState(() {
+        _currentList.removeLast();
+        _errorMessage = "";
+      });
+    }
+  }
+
+  void _checkMatch() {
+    final p1 = _firstPin.join();
+    final p2 = _confirmPin.join();
+    if (p1 == p2) {
+      HapticFeedback.mediumImpact();
+      widget.provider.setPin(p1);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔒 4-Digit Protection PIN successfully set!'),
+          backgroundColor: AppColors.accent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _firstPin.clear();
+        _confirmPin.clear();
+        _isConfirming = false;
+        _errorMessage = "PINs did not match. Please try again.";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: isConfirming ? confirmController : controller,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 6, fontSize: 20),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: '••••',
-                  hintStyle: const TextStyle(color: AppColors.textMuted, letterSpacing: 6),
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.border),
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  counterStyle: const TextStyle(color: AppColors.textMuted),
                 ),
               ),
-              if (!isConfirming && provider.hasPin) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.danger.withOpacity(0.15),
-                      foregroundColor: AppColors.danger,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 16),
+
+              // Title
+              Text(
+                _isConfirming ? 'CONFIRM 4-DIGIT PIN' : (widget.provider.hasPin ? 'CHANGE 4-DIGIT PIN' : 'SET 4-DIGIT PIN'),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _isConfirming
+                    ? 'Re-enter your 4 digits to confirm'
+                    : 'Enter a 4-digit code to lock settings',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 4 Dots
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(4, (index) {
+                  final isFilled = index < _currentList.length;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    width: isFilled ? 18 : 14,
+                    height: isFilled ? 18 : 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isFilled ? AppColors.primaryGlow : AppColors.surface,
+                      border: Border.all(
+                        color: isFilled ? AppColors.primaryGlow : AppColors.border,
+                        width: isFilled ? 0 : 2,
+                      ),
+                      boxShadow: isFilled
+                          ? [
+                              BoxShadow(
+                                color: AppColors.primaryGlow.withOpacity(0.5),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
                     ),
-                    onPressed: () async {
-                      HapticFeedback.mediumImpact();
-                      await provider.removePin();
-                      Navigator.pop(dialogCtx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('🔓 PIN removed successfully'),
-                          backgroundColor: AppColors.accent,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    child: const Text('Remove Current PIN', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  );
+                }),
               ),
-              onPressed: () async {
-                HapticFeedback.lightImpact();
-                if (isConfirming) {
-                  if (confirmController.text == firstPin) {
-                    await provider.setPin(firstPin);
-                    Navigator.pop(dialogCtx);
+              const SizedBox(height: 12),
+
+              // Error Message
+              SizedBox(
+                height: 20,
+                child: _errorMessage.isNotEmpty
+                    ? Text(
+                        _errorMessage,
+                        style: const TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w700),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 16),
+
+              // Keypad
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    for (final row in [
+                      ['1', '2', '3'],
+                      ['4', '5', '6'],
+                      ['7', '8', '9'],
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: row.map((d) => _buildKey(d)).toList(),
+                        ),
+                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildResetKey(),
+                        _buildKey('0'),
+                        _buildBackspaceKey(),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Remove PIN button if existing
+              if (widget.provider.hasPin)
+                TextButton.icon(
+                  onPressed: () async {
+                    HapticFeedback.mediumImpact();
+                    await widget.provider.removePin();
+                    Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('🔒 PIN successfully configured!'),
+                        content: Text('🔓 4-Digit PIN removed successfully'),
                         backgroundColor: AppColors.accent,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('❌ PINs do not match. Try again.'),
-                        backgroundColor: AppColors.danger,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    setState(() {
-                      isConfirming = false;
-                      controller.clear();
-                      confirmController.clear();
-                    });
-                  }
-                } else {
-                  if (controller.text.length == 4) {
-                    setState(() {
-                      firstPin = controller.text;
-                      isConfirming = true;
-                    });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('❌ PIN must be exactly 4 digits'),
-                        backgroundColor: AppColors.danger,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: Text(isConfirming ? 'Save PIN' : 'Next', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 16),
+                  label: const Text(
+                    'Remove Current PIN',
+                    style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 12.5),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKey(String value) {
+    return GestureDetector(
+      onTap: () => _onKeyPress(value),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Center(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResetKey() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _firstPin.clear();
+          _confirmPin.clear();
+          _isConfirming = false;
+          _errorMessage = "";
+        });
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 64,
+        height: 64,
+        alignment: Alignment.center,
+        child: const Text(
+          'RESET',
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackspaceKey() {
+    return GestureDetector(
+      onTap: _onBackspace,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 64,
+        height: 64,
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.backspace_outlined,
+          color: AppColors.textSecondary,
+          size: 20,
         ),
       ),
     );

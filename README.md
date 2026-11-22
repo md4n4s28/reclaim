@@ -1,104 +1,116 @@
-# Reclaim
-A Client-Side Application for Digital Discipline, Habit Tracking, and Network-Level Content Filtering
-
-Reclaim is a self-control utility built using the Flutter framework and native Android Kotlin engines. The project combines a modern dark-themed UI with native Android security APIs to assist users in establishing digital boundaries, tracking behavioral habits, overcoming addictive impulses, and enforcing strict content constraints.
-
----
-
-## Technical Overview
-
-The application architecture utilizes Flutter's declarative layout system and SharedPreferences-based persistence on the frontend. The security model relies on native Android components to prevent bypass attempts:
-
-1. **Sub-Millisecond Native Accessibility Watchdog (`ReclaimAccessibilityService`):**
-   - **Zero-Latency Event Pipeline:** Configured with `notificationTimeout="0"` and `typeAllMask` for instant event delivery.
-   - **Real-Time URL & Search Filtering:** Monitors browser view structures across Chrome, Brave, Firefox, Edge, Samsung Internet, DuckDuckGo, Snaptube, and webviews. Evaluates queries against 5,900+ adult domains and 50+ adult keywords, instantly redirecting blocked tabs to addiction recovery literature.
-   - **Surgical Anti-Cheat Protection:** Monitors System Settings and PackageInstaller screens. When a user attempts to access Reclaim's specific Accessibility toggle, App Info (Uninstall/Force Stop), or Device Admin deactivation screens:
-     - Renders an opaque `TYPE_ACCESSIBILITY_OVERLAY` touch-blocking security screen above System UI and Recents.
-     - Automatically dismisses system confirmation dialogs (*"Stop Reclaim Protection Service?"*) with `GLOBAL_ACTION_BACK`.
-     - Issues `ActivityManager.killBackgroundProcesses()` to terminate Settings and clear its sub-page backstack from Recents.
-     - **0% Impact on Other Apps:** Surgically targets Reclaim only. Users retain full access to general Settings and can freely grant/manage accessibility permissions for all other applications (TalkBack, Bitwarden, Tasker, etc.).
-
-2. **Device Administration (`ReclaimDeviceAdminReceiver`):**
-   - Enforces uninstall prevention by locking application package block state via `DevicePolicyManager`.
-
-3. **Private DNS Mode Configuration (`DNSFilterService`):**
-   - Alters system-wide DNS configurations to use CleanBrowsing Family Filter endpoints (`family-filter-dns.cleanbrowsing.org`) and DHCP fallback addresses (`185.228.168.168`, `185.228.169.168`) to restrict adult content requests at the network level.
-
----
-
-## Features and Subsystems
-
-### Content Filtering & Search Interception
-- **Boundary-Based Search Analysis:** Evaluates queries using exact word boundary matching, blocking adult searches without false positives on general terms.
-- **Automatic Recovery Redirection:** Instantly redirects blocked browser sessions to [EasyPeasy Method](https://easypeasymethod.org/) recovery resources.
-
-### Protection Hub & Custom Blocking
-- **Category Toggles:** Quick toggles for Adult Content, Gambling, Dating, Social Media, Streaming, and Gaming.
-- **Custom App & Website Blocker:** Manage custom package and website blocklists with permanent or timed blocks (15m, 1h, 24h) and auto-expiration cleanup.
-- **Daily Protection Metrics:** Tracks blocked attempts, websites blocked, apps restricted, and focus time saved.
-
-### Emergency Panic & Recovery Tools
-- **5-4-3-2-1 Grounding Checklist:** Tactile sensory exercise (Sight, Touch, Sound, Smell, Taste) to break acute urges.
-- **Immediate Actions & Breathing:** Physical action chips (cold water, push-ups) and guided box breathing animation.
-- **Urge Victory Logger:** "I Survived This Urge" logger recording resisted urges and focus time gained.
-
-### Accountability & Digital Wellbeing
-- **Consecutive Streak Tracker:** Live streak timer counting clean days, hours, and minutes.
-- **TableCalendar Activity Logging:** Visualizes history, distinguishing clean days from reported relapse days.
-- **Actual Screen Time Tracker:** Integrates Android `UsageStatsManager` to show actual daily phone usage and top used apps.
-- **Reflection Journal:** Daily journal entries with 1–5 emoji mood ratings, thoughts, gratitude notes, and trigger tags.
-
-### Security Controls
-- **4-Digit Access PIN:** Enforces verification before granting access to dashboard features.
-
----
-
-## App Screenshots
-
-<p align="left">
-  <img src="screenshorts/homeScreen.png" width="220" alt="Home Dashboard" />
-  <img src="screenshorts/urges.png" width="220" alt="Urges Tracker" />
-  <img src="screenshorts/progressTab.png" width="220" alt="Journey Progress" />
-  <img src="screenshorts/usage.png" width="220" alt="Usage Analytics" />
+<p align="center">
+  <img src="screenshorts/01_home_dashboard.png" width="120" alt="Reclaim Logo" style="border-radius: 24px;" />
 </p>
 
-<p align="left">
-  <img src="screenshorts/blockTab.png" width="220" alt="Block List Settings" />
-  <img src="screenshorts/appBlock.png" width="220" alt="Application Blocker" />
-  <img src="screenshorts/settings.png" width="220" alt="Settings Overview" />
-  <img src="screenshorts/advanceSettings.png" width="220" alt="Advanced Protection Settings" />
+<h1 align="center">Reclaim - Blocker & Urge Control</h1>
+
+<p align="center">
+  <strong>Client-Side Digital Self-Discipline, Focus Enforcement & Habit Recovery Engine</strong>
 </p>
 
-<p align="left">
-  <img src="screenshorts/panicMode.png" width="220" alt="Emergency Panic Screen" />
-  <img src="screenshorts/journals.png" width="220" alt="Daily Journal Screen" />
+<p align="center">
+  <img src="https://img.shields.io/badge/Version-v2.1.0-emerald?style=for-the-badge&logo=android" alt="Version 2.1.0" />
+  <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter" alt="Flutter" />
+  <img src="https://img.shields.io/badge/Kotlin-Android_14_API_34-purple?style=for-the-badge&logo=kotlin" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/Contributions-Open_to_All-brightgreen?style=for-the-badge&logo=github" alt="Contributions Open to All" />
+  <img src="https://img.shields.io/badge/Privacy-100%25_On--Device-success?style=for-the-badge&logo=shield" alt="Privacy First" />
+  <img src="https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge" alt="License" />
 </p>
 
 ---
 
-## Installation and Deployment
+## Overview
 
-### Development Prerequisites
-- Flutter SDK (v3.0.0 or higher)
-- Android SDK (v34 or higher, with developer configuration active on the test device)
+**Reclaim** is a client-side digital discipline and recovery utility built with the Flutter framework and a Native Android Kotlin core. Engineered for individuals striving to conquer compulsive smartphone habits and addictive impulses, Reclaim pairs an OLED dark interface with sub-millisecond system-level enforcement to keep you committed during moments of high cognitive friction and craving urges.
 
-### Setup Steps
+Everything runs 100% on-device with zero analytics, zero external telemetry, and zero remote servers.
 
+---
+
+## Key Highlights in v2.1.0
+
+- **Discrete Home Screen Widget:** Track your clean streak directly from your phone's home screen with a minimalist, privacy-conscious progress widget that discreetly displays progress without revealing sensitive context.
+- **Urge Surfing & Emergency Wave Simulator:** Prominently positioned urge timer with an animated dual-layer craving wave canvas and 5-4-3-2-1 sensory grounding exercises.
+- **Dedicated 4-Digit Security PIN & Keypad:** Full circular numeric keypad, auto-advancing 4-dot luminous indicators, and error micro-shake animations.
+- **Multi-Protocol Guided Breathwork:** 4-7-8 relaxing breath, 4-4-4-4 Box breathing, and 5-5 Coherent respiration with animated radial glow orbs.
+- **Sub-Millisecond Accessibility Watchdog:** Zero-latency event pipeline intercepting explicit search patterns across Chrome, Brave, Edge, Firefox, and in-app webviews.
+- **Surgical Anti-Tamper Hardening:** Prevents disabling Accessibility or uninstalling Reclaim during cravings while leaving general Android Settings and other applications completely untouched.
+
+---
+
+## Screenshots Showcase
+
+| Home Dashboard | Emergency Mode | Breathwork Protocols |
+| :---: | :---: | :---: |
+| <img src="screenshorts/01_home_dashboard.png" width="230" alt="Home Dashboard" /> | <img src="screenshorts/10_emergency_mode.png" width="230" alt="Emergency Mode & Wave Simulator" /> | <img src="screenshorts/11_breathing_protocols.png" width="230" alt="Breathing Protocols" /> |
+
+| Block & Firewall Hub | Journey & Progress | Recovery Journal |
+| :---: | :---: | :---: |
+| <img src="screenshorts/04_block_hub.png" width="230" alt="Content & App Blocker Hub" /> | <img src="screenshorts/05_journey_progress.png" width="230" alt="Sobriety Progress & Calendar" /> | <img src="screenshorts/06_recovery_journal.png" width="230" alt="Daily Recovery Journal" /> |
+
+| 4-Digit PIN Lock | PIN Keypad Setup | Advanced Hardening |
+| :---: | :---: | :---: |
+| <img src="screenshorts/02_pin_lock_screen.png" width="230" alt="4-Digit Security PIN Lock" /> | <img src="screenshorts/07_pin_setup_sheet.png" width="230" alt="PIN Setup & Verification Sheet" /> | <img src="screenshorts/03_advanced_hardening.png" width="230" alt="Advanced Protection & Hardening" /> |
+
+| Settings & Preferences | About & Version v2.1.0 |
+| :---: | :---: |
+| <img src="screenshorts/08_settings_overview.png" width="230" alt="Settings & Privacy Controls" /> | <img src="screenshorts/09_settings_about.png" width="230" alt="About & Version 2.1.0" /> |
+
+---
+
+## Installation & Build Instructions
+
+### Prerequisites
+- Flutter SDK (`>= 3.0.0`)
+- Android SDK (API 34 / Android 14)
+- Physical Android device (recommended for testing system accessibility overlays and widgets)
+
+### Development Setup
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/reclaim.git
+   git clone https://github.com/md4n4s28/reclaim.git
    cd reclaim
    ```
 
-2. **Retrieve package dependencies:**
+2. **Fetch dependencies:**
    ```bash
    flutter pub get
    ```
 
-3. **Deploy the debug artifact to the connected device:**
+3. **Deploy to a connected device:**
    ```bash
    flutter run
    ```
 
-4. **Grant permissions:**
-   Complete the onboarding configuration wizard inside the app to activate Device Administration, System Accessibility, Usage Stats, and Private DNS options.
+4. **Grant permissions on initial launch:**
+   Follow the onboarding guide to enable Accessibility Service, Usage Stats Access, and optionally Device Administration.
+
+---
+
+## Contribution - Open to All
+
+Contributions are warmly welcomed and open to everyone. Whether you are a beginner exploring open-source, an Android/Kotlin specialist, a Flutter developer, or someone with UX and design ideas, your contribution matters.
+
+### Ways you can contribute:
+- **Suggest Ideas & Features:** Propose new focus tools, recovery exercises, or habit psychology features in Issues or Discussions.
+- **Report or Fix Bugs:** Identify crashes, UI glitches, or bypass routes across different Android manufacturers (Samsung One UI, Xiaomi HyperOS, Pixel, etc.).
+- **Enhance UI/UX:** Refine animations, improve accessibility contrast, or design new widgets.
+- **Curate Blocklists:** Submit pull requests to expand `assets/listofsitetoblock.md` with zero false positives.
+- **Translations & Documentation:** Translate the app or improve setup documentation.
+
+Check out our [Contributing Guidelines (CONTRIBUTING.md)](CONTRIBUTING.md) for full instructions on setting up your local environment and submitting Pull Requests.
+
+---
+
+## Privacy & Security Policy
+
+- **Zero Network Telemetry:** No user data leaves your phone.
+- **Offline Journaling:** All reflections and streak timestamps are stored exclusively in local encrypted preferences.
+- **Auditable Source:** All source code is open for review.
+
+---
+
+## License & Author
+
+Created and maintained by [**@md4n4s28**](https://github.com/md4n4s28).  
+Distributed under the MIT License. See `LICENSE` for more information.
