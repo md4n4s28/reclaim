@@ -424,10 +424,39 @@ class AppProvider extends ChangeNotifier {
     _recalculateStreak();
   }
 
-  Future<void> registerRelapse() async {
-    final now = DateTime.now();
-    _relapses.add(now);
-    _streakStartTime = now;
+  Future<void> registerRelapse({DateTime? customDate}) async {
+    final relapseTime = customDate ?? DateTime.now();
+    _relapses.add(relapseTime);
+    _relapses.sort();
+    
+    // If this relapse is the latest one, reset streak start time
+    if (_relapses.last == relapseTime) {
+      _streakStartTime = relapseTime;
+    }
+    _recalculateStreak();
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> removeRelapse(DateTime date) async {
+    _relapses.removeWhere((r) =>
+        r.year == date.year && r.month == date.month && r.day == date.day);
+    if (_relapses.isNotEmpty) {
+      _relapses.sort();
+      _streakStartTime = _relapses.last;
+    } else {
+      _streakStartTime = _installDate ?? DateTime.now();
+    }
+    _recalculateStreak();
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> setStreakStartDate(DateTime date) async {
+    _streakStartTime = date;
+    _installDate = date.isBefore(_installDate ?? date) ? date : _installDate;
+    // Remove any relapses on or after this custom start date
+    _relapses.removeWhere((r) => r.isAfter(date));
     _recalculateStreak();
     await _save();
     notifyListeners();
